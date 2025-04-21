@@ -22,6 +22,7 @@ This project implements an onchain Battleship game leveraging the MegaETH networ
 
 ```
 ├── .github/            # GitHub Actions workflows
+├── circuit/            # ZK circuit files
 ├── lib/                # Dependencies (managed by Foundry)
 ├── script/             # Deployment and operation scripts
 │   ├── deploy/         # Deployment scripts
