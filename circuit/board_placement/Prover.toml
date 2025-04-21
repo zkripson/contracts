@@ -1,0 +1,32 @@
+board_commitment = ""
+salt = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""

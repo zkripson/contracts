@@ -1,0 +1,35 @@
+board_commitment = ""
+is_hit = ""
+salt = ""
+shot_x = ""
+shot_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""
+
+[[ships]]
+end_x = ""
+end_y = ""
+start_x = ""
+start_y = ""

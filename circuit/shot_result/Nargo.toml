@@ -1,0 +1,6 @@
+[package]
+name = "shot_result"
+type = "bin"
+authors = [""]
+
+[dependencies]

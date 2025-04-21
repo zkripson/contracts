@@ -1,7 +1,6 @@
 [package]
-name = "main"
+name = "game_end"
 type = "bin"
 authors = [""]
-compiler_version = "1.0.0"
 
 [dependencies]
