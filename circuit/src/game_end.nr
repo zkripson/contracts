@@ -271,7 +271,8 @@ fn test_incomplete_ship_hits() {
         Shot { x: 1, y: 0 },
         Shot { x: 2, y: 0 },
         Shot { x: 3, y: 0 },
-        // Missing Shot { x: 4, y: 0 },
+        // Missing Shot { x: 4, y: 0 }, - instead adding a duplicate
+        Shot { x: 3, y: 0 }, // Duplicate to maintain array size
         
         // Second ship (Battleship - length 4)
         Shot { x: 0, y: 2 },
