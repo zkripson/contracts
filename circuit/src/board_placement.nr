@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Battleship Board Placement Circuit
-// This circuit validates that a player's ship placement is valid according to game rules
+// Battleship Board Placement Circuit with Improved Hashing
+
+// Import the standard library
+use std::hash;
 
 // A ship is defined by its start and end coordinates
 struct Ship {
@@ -134,9 +136,14 @@ fn ships_overlap(ship1: Ship, ship2: Ship) -> bool {
         } else {
             // Ship 1 horizontal, Ship 2 vertical
             // Check if vertical ship crosses the horizontal ship's row
-            if s2.start_x >= s1.start_x & s2.start_x <= s1.end_x & 
-               s1.start_y >= s2.start_y & s1.start_y <= s2.end_y {
-                result = true;
+            if s2.start_x >= s1.start_x {
+                if s2.start_x <= s1.end_x {
+                    if s1.start_y >= s2.start_y {
+                        if s1.start_y <= s2.end_y {
+                            result = true;
+                        }
+                    }
+                }
             }
         }
     } else {
@@ -144,9 +151,14 @@ fn ships_overlap(ship1: Ship, ship2: Ship) -> bool {
         if s2.start_y == s2.end_y {
             // Ship 1 vertical, Ship 2 horizontal
             // Check if horizontal ship crosses the vertical ship's column
-            if s1.start_x >= s2.start_x & s1.start_x <= s2.end_x & 
-               s2.start_y >= s1.start_y & s2.start_y <= s1.end_y {
-                result = true;
+            if s1.start_x >= s2.start_x {
+                if s1.start_x <= s2.end_x {
+                    if s2.start_y >= s1.start_y {
+                        if s2.start_y <= s1.end_y {
+                            result = true;
+                        }
+                    }
+                }
             }
         } else {
             // Both vertical - check if they're on the same column and overlap
@@ -162,7 +174,7 @@ fn ships_overlap(ship1: Ship, ship2: Ship) -> bool {
     result
 }
 
-// Calculate the board commitment
+// Calculate the board commitment using Pedersen hash
 fn calculate_board_commitment(ships: [Ship; 5], salt: Field) -> Field {
     // Flatten ship data for hashing
     let mut data: [Field; 21] = [0; 21]; // 5 ships x 4 coordinates + 1 salt
@@ -175,26 +187,8 @@ fn calculate_board_commitment(ships: [Ship; 5], salt: Field) -> Field {
     }
     data[20] = salt;
     
-    // Hash the data
-    hash_data(data)
-}
-
-// Improved hash function without modulo operations
-fn hash_data(data: [Field; 21]) -> Field {
-    let mut result: Field = 0;
-    
-    // Combine all values with weighted addition
-    // This is a simplified hash, suited for circuit constraints
-    for i in 0..data.len() {
-        // Use a different multiplier for each position
-        let multiplier = (7 * (i + 1)) as Field;
-        result = result + (data[i] * multiplier);
-    }
-    
-    // Add salt-based factor to ensure uniqueness
-    result = result + (data[20] * 31);
-    
-    result
+    // Use the Pedersen hash from the standard library
+    hash::pedersen_hash(data)
 }
 
 // Test with valid ships
@@ -215,69 +209,8 @@ fn test_valid_placement() {
     main(ships, salt, commitment);
 }
 
-// Test with overlapping ships (should fail)
-fn test_overlapping_ships() {
-    // Create a board with overlapping ships
-    let ships = [
-        Ship { start_x: 0, start_y: 0, end_x: 4, end_y: 0 }, // Carrier - Length 5
-        Ship { start_x: 3, start_y: 0, end_x: 6, end_y: 0 }, // Battleship - Length 4 (overlaps with carrier)
-        Ship { start_x: 5, start_y: 5, end_x: 7, end_y: 5 }, // Cruiser - Length 3
-        Ship { start_x: 9, start_y: 0, end_x: 9, end_y: 2 }, // Submarine - Length 3
-        Ship { start_x: 3, start_y: 7, end_x: 4, end_y: 7 }  // Destroyer - Length 2
-    ];
-    
-    let salt = 12345;
-    let commitment = calculate_board_commitment(ships, salt);
-    
-    // Call main here and the assertion will fail
-    // Uncomment the following line to test:
-    // main(ships, salt, commitment);
-}
-
-// Test with invalid ship size (should fail)
-fn test_invalid_size() {
-    // Create a board with invalid ship size
-    let ships = [
-        Ship { start_x: 0, start_y: 0, end_x: 5, end_y: 0 }, // Invalid size - Length 6 (should be 5)
-        Ship { start_x: 0, start_y: 2, end_x: 3, end_y: 2 }, // Battleship - Length 4
-        Ship { start_x: 5, start_y: 5, end_x: 7, end_y: 5 }, // Cruiser - Length 3
-        Ship { start_x: 9, start_y: 0, end_x: 9, end_y: 2 }, // Submarine - Length 3
-        Ship { start_x: 3, start_y: 7, end_x: 4, end_y: 7 }  // Destroyer - Length 2
-    ];
-    
-    let salt = 12345;
-    let commitment = calculate_board_commitment(ships, salt);
-    
-    // Call main here and the assertion will fail
-    // Uncomment the following line to test:
-    // main(ships, salt, commitment);
-}
-
-// Test with ships outside the board (should fail)
-fn test_out_of_bounds() {
-    // Create a board with ships going outside the 10x10 grid
-    let ships = [
-        Ship { start_x: 0, start_y: 0, end_x: 4, end_y: 0 }, // Carrier - Length 5
-        Ship { start_x: 0, start_y: 2, end_x: 3, end_y: 2 }, // Battleship - Length 4
-        Ship { start_x: 8, start_y: 8, end_x: 10, end_y: 8 }, // Out of bounds (x=10)
-        Ship { start_x: 9, start_y: 0, end_x: 9, end_y: 2 }, // Submarine - Length 3
-        Ship { start_x: 3, start_y: 7, end_x: 4, end_y: 7 }  // Destroyer - Length 2
-    ];
-    
-    let salt = 12345;
-    let commitment = calculate_board_commitment(ships, salt);
-    
-    // Call main here and the assertion will fail
-    // Uncomment the following line to test:
-    // main(ships, salt, commitment);
-}
-
 // This function will be run when the circuit is compiled 
 // It serves as the primary test
 fn dummy_entrypoint() {
     test_valid_placement();
-    // Uncomment to test various failure modes:
-    // test_overlapping_ships();
-    // test_invalid_size();
-    // test_out_of_bounds();
 }
