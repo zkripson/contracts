@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Battleship Game End Circuit
-// This circuit verifies that all ships have been hit, validating a win condition
+// Battleship Game End Circuit with Improved Hashing
+
+// Import the standard library
+use std::hash;
 
 // A ship is defined by its start and end coordinates
 struct Ship {
@@ -140,7 +142,7 @@ fn position_in_shots(x: u8, y: u8, shots: [Shot; 17]) -> bool {
     found
 }
 
-// Calculate the board commitment
+// Calculate the board commitment using Pedersen hash
 fn calculate_board_commitment(ships: [Ship; 5], salt: Field) -> Field {
     // Flatten ship data for hashing
     let mut data: [Field; 21] = [0; 21]; // 5 ships x 4 coordinates + 1 salt
@@ -153,11 +155,11 @@ fn calculate_board_commitment(ships: [Ship; 5], salt: Field) -> Field {
     }
     data[20] = salt;
     
-    // Hash the data
-    hash_data(data)
+    // Use the Pedersen hash from the standard library
+    hash::pedersen_hash(data)
 }
 
-// Calculate the shot history hash
+// Calculate the shot history hash using Pedersen hash
 fn calculate_shot_history_hash(shots: [Shot; 17]) -> Field {
     // Flatten shot data for hashing
     let mut data: [Field; 34] = [0; 34]; // 17 shots x 2 coordinates
@@ -167,39 +169,8 @@ fn calculate_shot_history_hash(shots: [Shot; 17]) -> Field {
         data[i*2 + 1] = shots[i].y as Field;
     }
     
-    // Hash the data
-    hash_shot_data(data)
-}
-
-// Hash function for board data
-fn hash_data(data: [Field; 21]) -> Field {
-    let mut result: Field = 0;
-    
-    // Combine all values with weighted addition
-    for i in 0..data.len() {
-        // Use a different multiplier for each position
-        let multiplier = (7 * (i + 1)) as Field;
-        result = result + (data[i] * multiplier);
-    }
-    
-    // Add salt-based factor to ensure uniqueness
-    result = result + (data[20] * 31);
-    
-    result
-}
-
-// Hash function for shot data
-fn hash_shot_data(data: [Field; 34]) -> Field {
-    let mut result: Field = 0;
-    
-    // Combine all values with weighted addition
-    for i in 0..data.len() {
-        // Use a different multiplier for each position
-        let multiplier = (13 * (i + 1)) as Field;
-        result = result + (data[i] * multiplier);
-    }
-    
-    result
+    // Use the Pedersen hash from the standard library
+    hash::pedersen_hash(data)
 }
 
 // Test valid game end where all ships are hit
@@ -252,219 +223,7 @@ fn test_valid_game_end() {
     main(ships, salt, shots, board_commitment, shot_history_hash);
 }
 
-// Test incomplete ship hits (should fail)
-fn test_incomplete_ship_hits() {
-    // Create a valid board setup
-    let ships = [
-        Ship { start_x: 0, start_y: 0, end_x: 4, end_y: 0 }, // Carrier - Length 5
-        Ship { start_x: 0, start_y: 2, end_x: 3, end_y: 2 }, // Battleship - Length 4
-        Ship { start_x: 5, start_y: 5, end_x: 7, end_y: 5 }, // Cruiser - Length 3
-        Ship { start_x: 9, start_y: 0, end_x: 9, end_y: 2 }, // Submarine - Length 3
-        Ship { start_x: 3, start_y: 7, end_x: 4, end_y: 7 }  // Destroyer - Length 2
-    ];
-    let salt = 12345;
-    
-    // Create shots that miss one cell of the first ship
-    let shots = [
-        // First ship (Carrier - length 5) - missing position (4,0)
-        Shot { x: 0, y: 0 },
-        Shot { x: 1, y: 0 },
-        Shot { x: 2, y: 0 },
-        Shot { x: 3, y: 0 },
-        // Missing Shot { x: 4, y: 0 }, - instead adding a duplicate
-        Shot { x: 3, y: 0 }, // Duplicate to maintain array size
-        
-        // Second ship (Battleship - length 4)
-        Shot { x: 0, y: 2 },
-        Shot { x: 1, y: 2 },
-        Shot { x: 2, y: 2 },
-        Shot { x: 3, y: 2 },
-        
-        // Third ship (Cruiser - length 3)
-        Shot { x: 5, y: 5 },
-        Shot { x: 6, y: 5 },
-        Shot { x: 7, y: 5 },
-        
-        // Fourth ship (Submarine - length 3)
-        Shot { x: 9, y: 0 },
-        Shot { x: 9, y: 1 },
-        Shot { x: 9, y: 2 },
-        
-        // Fifth ship (Destroyer - length 2)
-        Shot { x: 3, y: 7 },
-        Shot { x: 4, y: 7 }
-    ];
-    
-    // Calculate commitments
-    let board_commitment = calculate_board_commitment(ships, salt);
-    let shot_history_hash = calculate_shot_history_hash(shots);
-    
-    // This should fail due to incomplete hits
-    // Uncomment to test:
-    // main(ships, salt, shots, board_commitment, shot_history_hash);
-}
-
-// Test with a shot that doesn't hit any ship (should fail)
-fn test_shot_on_nonexistent_ship() {
-    // Create a valid board setup
-    let ships = [
-        Ship { start_x: 0, start_y: 0, end_x: 4, end_y: 0 }, // Carrier - Length 5
-        Ship { start_x: 0, start_y: 2, end_x: 3, end_y: 2 }, // Battleship - Length 4
-        Ship { start_x: 5, start_y: 5, end_x: 7, end_y: 5 }, // Cruiser - Length 3
-        Ship { start_x: 9, start_y: 0, end_x: 9, end_y: 2 }, // Submarine - Length 3
-        Ship { start_x: 3, start_y: 7, end_x: 4, end_y: 7 }  // Destroyer - Length 2
-    ];
-    let salt = 12345;
-    
-    // Create shots with one miss
-    let shots = [
-        // First 16 shots hit ships correctly
-        Shot { x: 0, y: 0 },
-        Shot { x: 1, y: 0 },
-        Shot { x: 2, y: 0 },
-        Shot { x: 3, y: 0 },
-        Shot { x: 4, y: 0 },
-        Shot { x: 0, y: 2 },
-        Shot { x: 1, y: 2 },
-        Shot { x: 2, y: 2 },
-        Shot { x: 3, y: 2 },
-        Shot { x: 5, y: 5 },
-        Shot { x: 6, y: 5 },
-        Shot { x: 7, y: 5 },
-        Shot { x: 9, y: 0 },
-        Shot { x: 9, y: 1 },
-        Shot { x: 9, y: 2 },
-        Shot { x: 3, y: 7 },
-        
-        // Last shot doesn't hit any ship (8,8)
-        Shot { x: 8, y: 8 }
-    ];
-    
-    // Calculate commitments
-    let board_commitment = calculate_board_commitment(ships, salt);
-    let shot_history_hash = calculate_shot_history_hash(shots);
-    
-    // This should fail due to including a shot that doesn't hit any ship
-    // Uncomment to test:
-    // main(ships, salt, shots, board_commitment, shot_history_hash);
-}
-
-// Test tampered commitment (should fail)
-fn test_tampered_commitment() {
-    // Create a valid board setup
-    let ships = [
-        Ship { start_x: 0, start_y: 0, end_x: 4, end_y: 0 }, // Carrier - Length 5
-        Ship { start_x: 0, start_y: 2, end_x: 3, end_y: 2 }, // Battleship - Length 4
-        Ship { start_x: 5, start_y: 5, end_x: 7, end_y: 5 }, // Cruiser - Length 3
-        Ship { start_x: 9, start_y: 0, end_x: 9, end_y: 2 }, // Submarine - Length 3
-        Ship { start_x: 3, start_y: 7, end_x: 4, end_y: 7 }  // Destroyer - Length 2
-    ];
-    let salt = 12345;
-    
-    // Create valid shots that hit all ships
-    let shots = [
-        Shot { x: 0, y: 0 },
-        Shot { x: 1, y: 0 },
-        Shot { x: 2, y: 0 },
-        Shot { x: 3, y: 0 },
-        Shot { x: 4, y: 0 },
-        Shot { x: 0, y: 2 },
-        Shot { x: 1, y: 2 },
-        Shot { x: 2, y: 2 },
-        Shot { x: 3, y: 2 },
-        Shot { x: 5, y: 5 },
-        Shot { x: 6, y: 5 },
-        Shot { x: 7, y: 5 },
-        Shot { x: 9, y: 0 },
-        Shot { x: 9, y: 1 },
-        Shot { x: 9, y: 2 },
-        Shot { x: 3, y: 7 },
-        Shot { x: 4, y: 7 }
-    ];
-    
-    // Calculate shot history hash correctly
-    let shot_history_hash = calculate_shot_history_hash(shots);
-    
-    // Use an incorrect salt to generate a different board commitment
-    let wrong_salt = 54321;
-    let incorrect_commitment = calculate_board_commitment(ships, wrong_salt);
-    
-    // This should fail due to incorrect board commitment
-    // Uncomment to test:
-    // main(ships, salt, shots, incorrect_commitment, shot_history_hash);
-}
-
-// Test tampered shot history (should fail)
-fn test_tampered_shot_history() {
-    // Create a valid board setup
-    let ships = [
-        Ship { start_x: 0, start_y: 0, end_x: 4, end_y: 0 }, // Carrier - Length 5
-        Ship { start_x: 0, start_y: 2, end_x: 3, end_y: 2 }, // Battleship - Length 4
-        Ship { start_x: 5, start_y: 5, end_x: 7, end_y: 5 }, // Cruiser - Length 3
-        Ship { start_x: 9, start_y: 0, end_x: 9, end_y: 2 }, // Submarine - Length 3
-        Ship { start_x: 3, start_y: 7, end_x: 4, end_y: 7 }  // Destroyer - Length 2
-    ];
-    let salt = 12345;
-    
-    // Create valid shots that hit all ships
-    let shots = [
-        Shot { x: 0, y: 0 },
-        Shot { x: 1, y: 0 },
-        Shot { x: 2, y: 0 },
-        Shot { x: 3, y: 0 },
-        Shot { x: 4, y: 0 },
-        Shot { x: 0, y: 2 },
-        Shot { x: 1, y: 2 },
-        Shot { x: 2, y: 2 },
-        Shot { x: 3, y: 2 },
-        Shot { x: 5, y: 5 },
-        Shot { x: 6, y: 5 },
-        Shot { x: 7, y: 5 },
-        Shot { x: 9, y: 0 },
-        Shot { x: 9, y: 1 },
-        Shot { x: 9, y: 2 },
-        Shot { x: 3, y: 7 },
-        Shot { x: 4, y: 7 }
-    ];
-    
-    // Calculate board commitment correctly
-    let board_commitment = calculate_board_commitment(ships, salt);
-    
-    // Create different shots for an incorrect hash
-    let different_shots = [
-        Shot { x: 0, y: 0 },
-        Shot { x: 1, y: 0 },
-        Shot { x: 2, y: 0 },
-        Shot { x: 3, y: 0 },
-        Shot { x: 4, y: 0 },
-        Shot { x: 0, y: 2 },
-        Shot { x: 1, y: 2 },
-        Shot { x: 2, y: 2 },
-        Shot { x: 3, y: 2 },
-        Shot { x: 5, y: 5 },
-        Shot { x: 6, y: 5 },
-        Shot { x: 7, y: 5 },
-        Shot { x: 9, y: 0 },
-        Shot { x: 9, y: 1 },
-        Shot { x: 9, y: 2 },
-        Shot { x: 3, y: 8 }, // Changed from (3,7)
-        Shot { x: 4, y: 8 }  // Changed from (4,7)
-    ];
-    
-    // Calculate incorrect shot history hash
-    let incorrect_shot_history_hash = calculate_shot_history_hash(different_shots);
-    
-    // This should fail due to mismatched shot history hash
-    // Uncomment to test:
-    // main(ships, salt, shots, board_commitment, incorrect_shot_history_hash);
-}
-
 // This function will be run when the circuit is compiled
 fn dummy_entrypoint() {
     test_valid_game_end();
-    // Uncomment to test failure cases:
-    // test_incomplete_ship_hits();
-    // test_shot_on_nonexistent_ship();
-    // test_tampered_commitment();
-    // test_tampered_shot_history();
 }
