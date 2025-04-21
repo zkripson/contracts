@@ -16,4 +16,4 @@ viaIR = true
 number_underscore = "thousands"
 
 [rpc_endpoints]
-MegaTestnet = "${MEGA_TESTNET_RPC_URL}"
+MEGAETH = "${MEGA_TESTNET_RPC_URL}"
