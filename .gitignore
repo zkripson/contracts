@@ -12,3 +12,24 @@ docs/
 
 # Dotenv file
 .env
+
+# Node modules (for linting tools)
+node_modules/
+
+# Coverage reports
+lcov.info
+coverage/
+
+# MacOS system files
+.DS_Store
+
+# VSCode files
+.vscode/
+
+# Compiler cache directories
+forge-cache/
+
+# Hardhat files (if using Hardhat with Foundry)
+artifacts/
+typechain/
+typechain-types/
