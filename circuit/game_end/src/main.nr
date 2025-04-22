@@ -42,7 +42,7 @@ fn main(
     
     // Step 4: Verify all shots actually hit ships
     // This prevents including irrelevant shots in the proof
-    for i in 0..shots.len() {
+    for i in 0..17 {
         let hit = is_position_hit(ships, shots[i].x, shots[i].y);
         assert(hit);
     }
@@ -114,14 +114,24 @@ fn verify_all_ships_hit(ships: [Ship; 5], shots: [Shot; 17]) {
         let ship = normalize_ship(ships[i]);
         
         if ship.start_x == ship.end_x {
-            // Vertical ship
-            for y in ship.start_y..ship.end_y + 1 {
-                assert(position_in_shots(ship.start_x, y, shots));
+            // Vertical ship - iterating through fixed bounds instead of dynamic range
+            // Max ship length is 5, so we use a fixed loop and check validity
+            for j in 0..10 {
+                let y = ship.start_y + j as u8;
+                // Only check positions within the ship's bounds
+                if y <= ship.end_y {
+                    assert(position_in_shots(ship.start_x, y, shots));
+                }
             }
         } else {
-            // Horizontal ship
-            for x in ship.start_x..ship.end_x + 1 {
-                assert(position_in_shots(x, ship.start_y, shots));
+            // Horizontal ship - iterating through fixed bounds instead of dynamic range
+            // Max ship length is 5, so we use a fixed loop and check validity
+            for j in 0..10 {
+                let x = ship.start_x + j as u8;
+                // Only check positions within the ship's bounds
+                if x <= ship.end_x {
+                    assert(position_in_shots(x, ship.start_y, shots));
+                }
             }
         }
     }
@@ -131,7 +141,7 @@ fn verify_all_ships_hit(ships: [Ship; 5], shots: [Shot; 17]) {
 fn position_in_shots(x: u8, y: u8, shots: [Shot; 17]) -> bool {
     let mut found = false;
     
-    for i in 0..shots.len() {
+    for i in 0..17 {
         if shots[i].x == x {
             if shots[i].y == y {
                 found = true;
@@ -164,7 +174,7 @@ fn calculate_shot_history_hash(shots: [Shot; 17]) -> Field {
     // Flatten shot data for hashing
     let mut data: [Field; 34] = [0; 34]; // 17 shots x 2 coordinates
     
-    for i in 0..shots.len() {
+    for i in 0..17 {
         data[i*2] = shots[i].x as Field;
         data[i*2 + 1] = shots[i].y as Field;
     }

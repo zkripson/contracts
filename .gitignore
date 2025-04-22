@@ -33,3 +33,10 @@ forge-cache/
 artifacts/
 typechain/
 typechain-types/
+
+circuits/**/build/
+artifacts/
+circuits/**/proofs/
+circuits/**/Prover.toml
+circuits/**/Verifier.toml
+deploy
