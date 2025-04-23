@@ -1,0 +1,7 @@
+{
+    "testnet": {
+      "boardPlacementVerifier": "0x2dd5ee6f05ee772301730aa273b5fab211153a09",
+      "shotResultVerifier": "0x8bb12ce8761e5f43f82b06752d957e845580de70",
+      "gameEndVerifier": "0x2690d996eaafdda967a9ffabf52f33eb8faed235"
+    }
+  }
