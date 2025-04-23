@@ -124,7 +124,7 @@ library HonkVerificationKey {
     }
 }
 
-pragma solidity ^0.8.27;
+pragma solidity >=0.8.29;
 
 type Fr is uint256;
 
