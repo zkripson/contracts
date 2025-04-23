@@ -8,6 +8,9 @@ bytecode_hash = "none"
 cbor_metadata = false
 optimizer = true
 optimizer_runs = 1_000_000
+# Increase the EVM stack size limit
+evm_version = "cancun"
+optimizer_details = { jumpdest_remover = true, order_literals = true, deduplicate = true, cse = true, constant_optimizer = true, yul = true }
 viaIR = true
 gas_reports = ["*"]
 solc = "0.8.29"
