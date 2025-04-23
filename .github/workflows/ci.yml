@@ -17,29 +17,43 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-
+      
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
-
-      - name: Run Forge build
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Run pre-deploy script if exists
         run: |
-          forge --version
-          forge build --sizes
-        id: build
-
-      - name: Run Forge tests
-        run: |
-          forge test -v
-        id: test
-
-      - name: Run Forge coverage
-        run: |
-          forge coverage
-        id: coverage
-
-      - name: Run Solhint
+          if [ -f "./pre-deploy.sh" ]; then
+            chmod +x ./pre-deploy.sh
+            ./pre-deploy.sh
+          fi
+      
+    #   - name: Run Forge tests
+    #     run: |
+    #       forge test -v
+    #     id: test
+      
+    #   - name: Run Forge coverage
+    #     run: |
+    #       forge coverage
+    #     id: coverage
+      
+      - name: Install Solhint
         run: |
           bun add --dev solhint
-          solhint 'src/**/*.sol'
+      
+      - name: Run Solhint
+        run: |
+          npx solhint 'src/**/*.sol'

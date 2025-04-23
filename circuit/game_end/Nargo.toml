@@ -1,0 +1,6 @@
+[package]
+name = "game_end"
+type = "bin"
+authors = [""]
+
+[dependencies]

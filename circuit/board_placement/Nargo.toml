@@ -1,0 +1,6 @@
+[package]
+name = "board_placement"
+type = "bin"
+authors = [""]
+
+[dependencies]
