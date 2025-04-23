@@ -79,7 +79,7 @@ library GameStorage {
     /**
      * @notice Record a shot
      * @param gameState The game state storage
-     * @param shooter Player making the shot
+     * @param _shooter Player making the shot
      * @param target Player being targeted
      * @param x X coordinate
      * @param y Y coordinate
