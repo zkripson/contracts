@@ -40,15 +40,15 @@ jobs:
             ./pre-deploy.sh
           fi
       
-    #   - name: Run Forge tests
-    #     run: |
-    #       forge test -v
-    #     id: test
+      - name: Run Forge tests
+        run: |
+          forge test -v
+        id: test
       
-    #   - name: Run Forge coverage
-    #     run: |
-    #       forge coverage
-    #     id: coverage
+      - name: Run Forge coverage
+        run: |
+          forge coverage
+        id: coverage
       
       - name: Install Solhint
         run: |
