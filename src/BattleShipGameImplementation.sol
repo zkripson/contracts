@@ -6,32 +6,8 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "./libraries/GameStorage.sol";
+import "./interfaces/IZKVerifier.sol";
 
-/**
- * @title ZKVerifier Interface
- * @dev Interface for interacting with the ZKVerifier contract
- */
-interface ZKVerifier {
-    function verifyBoardPlacement(bytes32 boardCommitment, bytes calldata proof) external view returns (bool);
-    function verifyShotResult(
-        bytes32 boardCommitment,
-        uint8 x,
-        uint8 y,
-        bool isHit,
-        bytes calldata proof
-    )
-        external
-        view
-        returns (bool);
-    function verifyGameEnd(
-        bytes32 boardCommitment,
-        bytes32 shotHistoryHash,
-        bytes calldata proof
-    )
-        external
-        view
-        returns (bool);
-}
 
 /**
  * @title BattleshipGameImplementation
@@ -405,7 +381,7 @@ contract BattleshipGameImplementation is
         bytes32 shotHistoryHash = gameState.getShotHistoryHash(msg.sender);
 
         // Verify the game end proof
-        bool isValid = ZKVerifier(zkVerifier).verifyGameEnd(boardCommitment, shotHistoryHash, zkProof);
+        bool isValid = IZKVerifier(zkVerifier).verifyGameEnd(boardCommitment, shotHistoryHash, zkProof);
 
         if (!isValid) {
             revert InvalidProof();
@@ -600,7 +576,7 @@ contract BattleshipGameImplementation is
      */
     function _verifyBoardPlacement(bytes32 boardCommitment, bytes calldata proof) internal view returns (bool) {
         // Call to the ZKVerifier contract
-        return ZKVerifier(zkVerifier).verifyBoardPlacement(boardCommitment, proof);
+        return IZKVerifier(zkVerifier).verifyBoardPlacement(boardCommitment, proof);
     }
 
     /**
@@ -624,7 +600,7 @@ contract BattleshipGameImplementation is
         returns (bool)
     {
         // Call to the ZKVerifier contract
-        return ZKVerifier(zkVerifier).verifyShotResult(boardCommitment, x, y, claimedHit, proof);
+        return IZKVerifier(zkVerifier).verifyShotResult(boardCommitment, x, y, claimedHit, proof);
     }
 
     /**
