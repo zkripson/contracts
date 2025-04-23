@@ -12,6 +12,133 @@ This project implements an onchain Battleship game leveraging the MegaETH networ
 - WebSocket event subscriptions for real-time game updates
 - Comprehensive test suite simulating complete game scenarios
 
+## Architecture Overview
+
+The ZK Battleship contract system consists of the following components:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                      ZK Battleship Contract System                    │
+└──────────────────────────────────────┬───────────────────────────────┘
+                                       │
+           ┌──────────────────────────┐│┌───────────────────────────┐
+           │                          │││                           │
+           │  ┌────────────────────┐  │││  ┌────────────────────┐   │
+           │  │ GameFactory        │◄─┘│└─►│ $SHIPToken         │   │
+           │  │ (Game Creation)    │   │   │ (Rewards)          │   │
+           │  └──────────┬─────────┘   │   └────────────────────┘   │
+           │             │             │                             │
+           │  ┌──────────▼─────────┐   │   ┌────────────────────┐   │
+           │  │ BattleshipGameProxy│   │   │ ZKVerifier         │   │
+           │  │ (Permanent Address)│◄──┼───┤ (Proof Validation) │   │
+           │  └──────────┬─────────┘   │   └────────────────────┘   │
+           │             │             │                             │
+           │             │             │   ┌────────────────────┐   │
+           │  ┌──────────▼─────────┐   │   │ GameUpgradeManager │   │
+           │  │ Game Implementation│◄──┼───┤ (Upgrade Control)  │   │
+           │  │ (Upgradeable Logic)│   │   └────────────────────┘   │
+           │  └──────────┬─────────┘   │                             │
+           │             │             │                             │
+           │  ┌──────────▼─────────┐   │                             │
+           │  │ GameStorage        │   │                             │
+           │  │ (State Management) │   │                             │
+           │  └────────────────────┘   │                             │
+           │                           │                             │
+           │      Core Gameplay        │        Support Systems      │
+           └───────────────────────────┘     └─────────────────────┘
+```
+
+## Core Components
+
+### 1. BattleshipGameImplementation.sol
+
+The main gameplay logic contract that implements:
+- Game lifecycle management (Created -> Setup -> Active -> Completed/Cancelled)
+- Move validation and state transitions
+- Integration with ZK proof verification
+- Access controls for players and admin functions
+- Upgradeability via UUPS pattern
+
+### 2. BattleshipGameProxy.sol
+
+A simple proxy contract that follows the ERC1967 standard to:
+- Provide a permanent address for each game instance
+- Delegate all calls to the current implementation
+- Maintain game state across upgrades
+
+### 3. GameFactory.sol
+
+Manages game creation and serves as the entry point for players:
+- Creates new game instances as proxy contracts
+- Maintains registry of active games
+- Manages player-to-game mappings
+- Controls implementation upgrades
+
+### 4. ZKVerifier.sol
+
+Validates zero-knowledge proofs for game actions:
+- Verifies board placement proofs
+- Validates shot result proofs
+- Confirms game ending proofs
+
+### 5. GameStorage.sol
+
+Optimizes storage and retrieval of game state:
+- Uses bit-packed board representation
+- Compresses storage of shot history
+- Provides gas-optimized data structures
+
+## Upgradeability Design
+
+The implementation uses the UUPS (Universal Upgradeable Proxy Standard) pattern:
+
+1. The proxy contract is minimal and non-upgradeable itself
+2. The implementation contract contains the upgrade logic
+3. Upgrade authorization is controlled by access roles
+4. Storage uses gap slots to allow future extensions
+
+Benefits of this approach:
+- **Gas Efficiency**: Reduced proxy deployment costs
+- **Security**: Clear upgrade authorization controls
+- **Simplicity**: Clean separation of concerns
+
+## Optimized Storage
+
+The GameStorage library provides optimized on-chain storage:
+
+1. **Efficient Board Representation**:
+   - Bit-packed ship positions using uint256
+   - Compressed storage of hit and shot maps
+   - Minimal storage requirements
+
+2. **Gas Optimization**:
+   - Each 10x10 board fits in a single storage slot
+   - Coordinates are packed for efficient storage
+   - O(1) lookups for shot and hit checks
+
+## Game Flow
+
+1. **Game Creation**:
+   - Player calls `GameFactory.createGame(opponent)`
+   - Factory deploys new proxy with implementation
+   - Game initializes with both player addresses
+
+2. **Board Submission**:
+   - Players generate ZK proofs of valid board layouts
+   - Both players call `submitBoard(commitment, proof)`
+   - Once both boards are submitted, game moves to Active state
+
+3. **Gameplay**:
+   - Current player calls `makeShot(x, y)`
+   - Target player calls `submitShotResult(x, y, isHit, proof)`
+   - Turns alternate until win condition is met
+
+4. **Game Completion**:
+   - When all ships of a player are sunk
+   - Player calls `verifyGameEnd(commitment, proof)`
+   - Players can claim rewards via `claimReward()`
+
+
 ## Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)
