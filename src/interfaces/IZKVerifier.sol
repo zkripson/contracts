@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.29;
+
 /**
  * @title ZKVerifier Interface
  * @dev Interface for interacting with the ZKVerifier contract

@@ -8,7 +8,6 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "./libraries/GameStorage.sol";
 import "./interfaces/IZKVerifier.sol";
 
-
 /**
  * @title BattleshipGameImplementation
  * @dev Core game logic for ZK Battleship, following UUPS upgradeable pattern

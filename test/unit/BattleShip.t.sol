@@ -3,9 +3,8 @@ pragma solidity >=0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
 import "../../src/BattleshipGameImplementation.sol";
-//import "../../src/proxies/BattleshipGameProxy.sol";
-import "../../src/factories/GameFactory.sol";
-import "../../src/ZKVerifier.sol";
+import "../../src/proxies/BattleshipGameProxy.sol";
+import {GameFactory} from "../../src/factories/GameFactory.sol";
 import "../../src/libraries/GameStorage.sol";
 import "../../src/interfaces/IVerifiers.sol";
 
@@ -40,6 +39,70 @@ contract MockGameEndVerifier is IGameEndVerifier {
 }
 
 /**
+ * @title MockZKVerifier
+ * @notice Mock implementation of the ZKVerifier contract for testing
+ */
+contract MockZKVerifier {
+    MockBoardVerifier public boardVerifier;
+    MockShotVerifier public shotVerifier;
+    MockGameEndVerifier public gameEndVerifier;
+    
+    constructor(
+        address _boardVerifier,
+        address _shotVerifier,
+        address _gameEndVerifier
+    ) {
+        boardVerifier = MockBoardVerifier(_boardVerifier);
+        shotVerifier = MockShotVerifier(_shotVerifier);
+        gameEndVerifier = MockGameEndVerifier(_gameEndVerifier);
+    }
+    
+    function verifyBoardPlacement(bytes32 boardCommitment, bytes calldata proof) external view returns (bool) {
+        return boardVerifier.verify(proof, getBoardInputs(boardCommitment));
+    }
+    
+    function verifyShotResult(
+        bytes32 boardCommitment,
+        uint8 x,
+        uint8 y,
+        bool isHit,
+        bytes calldata proof
+    ) external view returns (bool) {
+        return shotVerifier.verify(proof, getShotInputs(boardCommitment, x, y, isHit));
+    }
+    
+    function verifyGameEnd(
+        bytes32 boardCommitment,
+        bytes32 shotHistoryHash,
+        bytes calldata proof
+    ) external view returns (bool) {
+        return gameEndVerifier.verify(proof, getGameEndInputs(boardCommitment, shotHistoryHash));
+    }
+    
+    function getBoardInputs(bytes32 boardCommitment) internal pure returns (bytes32[] memory) {
+        bytes32[] memory inputs = new bytes32[](1);
+        inputs[0] = boardCommitment;
+        return inputs;
+    }
+    
+    function getShotInputs(bytes32 boardCommitment, uint8 x, uint8 y, bool isHit) internal pure returns (bytes32[] memory) {
+        bytes32[] memory inputs = new bytes32[](4);
+        inputs[0] = boardCommitment;
+        inputs[1] = bytes32(uint256(x));
+        inputs[2] = bytes32(uint256(y));
+        inputs[3] = isHit ? bytes32(uint256(1)) : bytes32(uint256(0));
+        return inputs;
+    }
+    
+    function getGameEndInputs(bytes32 boardCommitment, bytes32 shotHistoryHash) internal pure returns (bytes32[] memory) {
+        bytes32[] memory inputs = new bytes32[](2);
+        inputs[0] = boardCommitment;
+        inputs[1] = shotHistoryHash;
+        return inputs;
+    }
+}
+
+/**
  * @title BattleshipTest
  * @notice Test suite for ZK Battleship contracts
  */
@@ -47,7 +110,7 @@ contract BattleshipTest is Test {
     // Contracts
     BattleshipGameImplementation implementation;
     GameFactory factory;
-    ZKVerifier zkVerifier;
+    MockZKVerifier mockZKVerifier;
     
     // Mock verifiers
     MockBoardVerifier mockBoardVerifier;
@@ -73,8 +136,8 @@ contract BattleshipTest is Test {
         mockShotVerifier = new MockShotVerifier();
         mockGameEndVerifier = new MockGameEndVerifier();
         
-        // Deploy ZK verifier
-        zkVerifier = new ZKVerifier(
+        // Deploy mock ZK verifier
+        mockZKVerifier = new MockZKVerifier(
             address(mockBoardVerifier),
             address(mockShotVerifier),
             address(mockGameEndVerifier)
@@ -84,7 +147,7 @@ contract BattleshipTest is Test {
         implementation = new BattleshipGameImplementation();
         
         // Deploy factory
-        factory = new GameFactory(address(implementation), address(zkVerifier));
+        factory = new GameFactory(address(implementation), address(mockZKVerifier));
         
         vm.stopPrank();
     }
@@ -173,6 +236,17 @@ contract BattleshipTest is Test {
         
         // Player1 should have 17 hits now (win condition)
         assertEq(gameProxy.getHitCount(player1), 17);
+
+        console.log("Player1 hit count:", gameProxy.getHitCount(player1));
+
+// Check if all ships are sunk for player2
+        bool allSunk = false;
+        try gameProxy.verifyGameEnd(player2BoardCommitment, bytes("proof")) {
+            allSunk = true;
+        } catch {
+            allSunk = false;
+        }
+        console.log("All ships sunk check:", allSunk);
         
         // 7. Player1 verifies game end
         vm.startPrank(player1);
