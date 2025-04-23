@@ -15,6 +15,10 @@ viaIR = true
 gas_reports = ["*"]
 solc = "0.8.29"
 
+exclude_paths = [
+  "src/verifiers/*.sol"
+]
+
 [profile.ci]
   fuzz = { runs = 10_000 }
   verbosity = 4

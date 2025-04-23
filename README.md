@@ -57,10 +57,70 @@ This project implements an onchain Battleship game leveraging the MegaETH networ
 
 4. Configure your environment variables in the `.env` file.
 
-5. Build the project:
-   ```bash
-   forge build
-   ```
+Building the Project
+We use a special build script to handle the verifier contracts, which are complex and can cause stack-too-deep errors when compiled.
+Setup
+
+Ensure the scripts are executable:
+
+bashchmod +x scripts/pre-build.sh scripts/deploy.sh
+
+Create a .env file with your deployment settings:
+
+PRIVATE_KEY=your_private_key
+MEGAETH_RPC_URL=your_rpc_url
+
+## Building the Project
+
+We use a special build script to handle the verifier contracts, which are complex and can cause stack-too-deep errors when compiled.
+
+### Setup
+
+1. Ensure the scripts are executable:
+
+```bash
+chmod +x scripts/pre-build.sh scripts/deploy.sh
+```
+
+2. Create a `.env` file with your deployment settings:
+
+```
+PRIVATE_KEY=your_private_key
+MEGAETH_RPC_URL=your_rpc_url
+```
+
+### Building
+
+To build the project without the verifier contracts:
+
+```bash
+./scripts/pre-build.sh
+```
+
+This script will:
+1. Temporarily move verifier contracts out of the way
+2. Run the Forge build
+3. Restore the verifier contracts afterward
+
+For a build with specific parameters:
+
+```bash
+./scripts/pre-build.sh --optimize --via-ir
+```
+
+### Deploying
+
+To deploy the project:
+
+```bash
+./scripts/deploy.sh
+```
+
+This script will:
+1. Run the pre-build script
+2. Deploy the contracts to MegaETH testnet
+3. Verify the contracts on the block explorer
+
 
 6. Run tests:
    ```bash

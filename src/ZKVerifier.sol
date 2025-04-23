@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./interfaces/IVerifier.sol";
+import "./interfaces/IVerifiers.sol";
 
 /**
  * @title ZKVerifier
@@ -10,9 +10,9 @@ import "./interfaces/IVerifier.sol";
  */
 contract ZKVerifier {
     // Verifier contracts for each type of proof
-    IVerifier public immutable boardPlacementVerifier;
-    IVerifier public immutable shotResultVerifier;
-    IVerifier public immutable gameEndVerifier;
+    IBoardPlacementVerifier public immutable boardPlacementVerifier;
+    IShotResultVerifier public immutable shotResultVerifier;
+    IGameEndVerifier public immutable gameEndVerifier;
     
     // Contract owner for upgrades
     address public owner;
@@ -35,9 +35,9 @@ contract ZKVerifier {
         address _shotResultVerifier,
         address _gameEndVerifier
     ) {
-        boardPlacementVerifier = IVerifier(_boardPlacementVerifier);
-        shotResultVerifier = IVerifier(_shotResultVerifier);
-        gameEndVerifier = IVerifier(_gameEndVerifier);
+        boardPlacementVerifier = IBoardPlacementVerifier(_boardPlacementVerifier);
+        shotResultVerifier = IShotResultVerifier(_shotResultVerifier);
+        gameEndVerifier = IGameEndVerifier(_gameEndVerifier);
         owner = msg.sender;
     }
     
