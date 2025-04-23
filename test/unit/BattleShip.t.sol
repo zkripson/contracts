@@ -2,7 +2,7 @@
 pragma solidity >=0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
-import "../../src/BattleshipGameImplementation.sol";
+import "../../src/BattleShipGameImplementation.sol";
 import "../../src/proxies/BattleshipGameProxy.sol";
 import {GameFactory} from "../../src/factories/GameFactory.sol";
 import "../../src/libraries/GameStorage.sol";

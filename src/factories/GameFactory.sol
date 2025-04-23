@@ -4,7 +4,7 @@ pragma solidity >=0.8.29;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 import "../proxies/BattleShipGameProxy.sol";
-import "../BattleshipGameImplementation.sol";
+import "../BattleShipGameImplementation.sol";
 
 /**
  * @title GameFactory
