@@ -1,5 +1,5 @@
 #!/bin/bash
-# pre-build.sh
+# pre-deploy.sh
 # Script to temporarily move verifier contracts out of the way during compilation
 
 set -e # Exit on any error

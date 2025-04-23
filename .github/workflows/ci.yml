@@ -33,18 +33,12 @@ jobs:
         with:
           bun-version: latest
       
-      - name: Run pre-build script if exists
+      - name: Run pre-deploy script if exists
         run: |
-          if [ -f "./pre-build.sh" ]; then
-            chmod +x ./pre-build.sh
-            ./pre-build.sh
+          if [ -f "./pre-deploy.sh" ]; then
+            chmod +x ./pre-deploy.sh
+            ./pre-deploy.sh
           fi
-      
-      - name: Run Forge build
-        run: |
-          forge --version
-          forge build --sizes
-        id: build
       
       - name: Run Forge tests
         run: |
