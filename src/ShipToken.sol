@@ -79,7 +79,12 @@ contract SHIPToken is ERC20, ERC20Burnable, Pausable, AccessControl {
         address player,
         bool isWinner,
         uint256 gameId
-    ) external onlyRole(DISTRIBUTOR_ROLE) whenNotPaused returns (bool) {
+    )
+        external
+        onlyRole(DISTRIBUTOR_ROLE)
+        whenNotPaused
+        returns (bool)
+    {
         // Prevent reward abuse with cooldown
         require(block.timestamp >= lastRewardTimestamp[player] + rewardCooldown, "SHIP: Reward cooldown still active");
 
@@ -117,7 +122,10 @@ contract SHIPToken is ERC20, ERC20Burnable, Pausable, AccessControl {
     function updateRewardParameters(
         uint256 newParticipationReward,
         uint256 newVictoryBonus
-    ) external onlyRole(ADMIN_ROLE) {
+    )
+        external
+        onlyRole(ADMIN_ROLE)
+    {
         participationReward = newParticipationReward;
         victoryBonus = newVictoryBonus;
 

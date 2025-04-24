@@ -160,23 +160,21 @@ contract SHIPTokenTest is Test {
         vm.startPrank(admin);
         shipToken.pause();
 
-        // Try to mint while paused - should fail
-        vm.expectRevert("Pausable: paused");
-        shipToken.mintGameReward(player1, true, gameId);
+        // Set no cooldown for testing
+        shipToken.updateAbuseControls(0, 1000 * 10 ** 18);
         vm.stopPrank();
 
-        // Try a transfer while paused - should fail
-        uint256 initialBalance = shipToken.balanceOf(admin);
-        vm.prank(admin);
+        // Try to mint while paused (this contract has DISTRIBUTOR_ROLE)
+        vm.expectRevert("Pausable: paused");
+        shipToken.mintGameReward(player1, true, gameId);
+
+        // Try a transfer while paused (admin has tokens from initialSupply)
+        vm.startPrank(admin);
         vm.expectRevert("Pausable: paused");
         shipToken.transfer(player1, 100);
 
         // Unpause
-        vm.startPrank(admin);
         shipToken.unpause();
-
-        // Disable cooldown for testing
-        shipToken.updateAbuseControls(0, 1000 * 10 ** 18);
         vm.stopPrank();
 
         // Minting should work again
