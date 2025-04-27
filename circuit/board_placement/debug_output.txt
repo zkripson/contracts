@@ -1,23 +1,17 @@
-warning: unused variable calculated_commitment
-   ┌─ src/main.nr:84:9
-   │
-84 │     let calculated_commitment = calculate_board_commitment(ships, salt);
-   │         --------------------- unused variable 
-   │
-
-warning: unused variable board_commitment
-   ┌─ src/main.nr:19:5
-   │
-19 │     board_commitment: pub Field  // Public: Commitment to board state
-   │     ---------------- unused variable 
-   │
-
 warning: unused function dummy_entrypoint
-    ┌─ src/main.nr:214:4
+    ┌─ src/main.nr:218:4
     │
-214 │ fn dummy_entrypoint() {
+218 │ fn dummy_entrypoint() {
     │    ---------------- unused function
     │
 
-[board_placement] Circuit witness successfully solved
-[board_placement] Witness saved to /Users/lazerpay/Desktop/open-source/kripson/circuit/board_placement/target/board_placement.gz
+error: Failed constraint
+   ┌─ /Users/lazerpay/Desktop/open-source/kripson/circuit/board_placement/src/main.nr:88:12
+   │
+88 │     assert(false);
+   │            -----
+   │
+   = Call stack:
+     1. /Users/lazerpay/Desktop/open-source/kripson/circuit/board_placement/src/main.nr:88:12
+
+Failed to solve program: 'Cannot satisfy constraint'
