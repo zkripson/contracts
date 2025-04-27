@@ -1,112 +1,112 @@
 board_commitment = "0" # Will be calculated for proving
-salt = "12345"
+salt = "491204299950808"
 shot_history_hash = "0" # Will be calculated for proving
 
 # Carrier - Length 5
 [[ships]]
 start_x = "0"
-start_y = "0"
-end_x = "4"
-end_y = "0"
+start_y = "3"
+end_x = "0"
+end_y = "7"
 
 # Battleship - Length 4
 [[ships]]
-start_x = "0"
-start_y = "2"
-end_x = "3"
-end_y = "2"
+start_x = "6"
+start_y = "1"
+end_x = "6"
+end_y = "4"
 
 # Cruiser - Length 3
 [[ships]]
-start_x = "5"
-start_y = "5"
-end_x = "7"
-end_y = "5"
+start_x = "6"
+start_y = "6"
+end_x = "8"
+end_y = "6"
 
 # Submarine - Length 3
 [[ships]]
-start_x = "9"
-start_y = "0"
+start_x = "7"
+start_y = "8"
 end_x = "9"
-end_y = "2"
+end_y = "8"
 
 # Destroyer - Length 2
 [[ships]]
-start_x = "3"
-start_y = "7"
-end_x = "4"
-end_y = "7"
+start_x = "2"
+start_y = "3"
+end_x = "2"
+end_y = "4"
 
-# Shots that hit all ships (total 17 shots)
 # Carrier hits (5)
 [[shots]]
 x = "0"
-y = "0"
+y = "3"
 
 [[shots]]
-x = "1"
-y = "0"
+x = "0"
+y = "4"
 
 [[shots]]
-x = "2"
-y = "0"
+x = "0"
+y = "5"
 
 [[shots]]
-x = "3"
-y = "0"
+x = "0"
+y = "6"
 
 [[shots]]
-x = "4"
-y = "0"
+x = "0"
+y = "7"
 
 # Battleship hits (4)
 [[shots]]
-x = "0"
-y = "2"
-
-[[shots]]
-x = "1"
-y = "2"
-
-[[shots]]
-x = "2"
-y = "2"
-
-[[shots]]
-x = "3"
-y = "2"
-
-# Cruiser hits (3)
-[[shots]]
-x = "5"
-y = "5"
-
-[[shots]]
 x = "6"
-y = "5"
-
-[[shots]]
-x = "7"
-y = "5"
-
-# Submarine hits (3)
-[[shots]]
-x = "9"
-y = "0"
-
-[[shots]]
-x = "9"
 y = "1"
 
 [[shots]]
-x = "9"
+x = "6"
 y = "2"
+
+[[shots]]
+x = "6"
+y = "3"
+
+[[shots]]
+x = "6"
+y = "4"
+
+# Cruiser hits (3)
+[[shots]]
+x = "6"
+y = "6"
+
+[[shots]]
+x = "7"
+y = "6"
+
+[[shots]]
+x = "8"
+y = "6"
+
+# Submarine hits (3)
+[[shots]]
+x = "7"
+y = "8"
+
+[[shots]]
+x = "8"
+y = "8"
+
+[[shots]]
+x = "9"
+y = "8"
 
 # Destroyer hits (2)
 [[shots]]
-x = "3"
-y = "7"
+x = "2"
+y = "3"
 
 [[shots]]
-x = "4"
-y = "7"
+x = "2"
+y = "4"
+

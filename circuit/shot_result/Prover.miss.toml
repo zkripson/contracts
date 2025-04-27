@@ -1,8 +1,8 @@
 board_commitment = "0" # Will be calculated for proving
 salt = "947555887357673"
-shot_x = "2"
-shot_y = "4"
-is_hit = "true"
+shot_x = "8"
+shot_y = "5"
+is_hit = "false"
 
 # Carrier - Length 5
 [[ships]]

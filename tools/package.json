@@ -1,0 +1,18 @@
+{
+  "name": "tools",
+  "version": "1.0.0",
+  "description": "",
+  "main": "input-generator.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Njoku Emmanuel",
+  "license": "ISC",
+  "dependencies": {
+    "bn.js": "^5.2.2",
+    "ethers": "^6.13.7",
+    "fs": "^0.0.1-security"
+  }
+}
