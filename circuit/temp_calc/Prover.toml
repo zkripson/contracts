@@ -1,4 +1,4 @@
-board_commitment = "7090607031405807855718850922997486495844259937352498417954795869387178575080"
+board_commitment = "0" # For proving, this will be calculated; for verification, use the actual commitment
 salt = "643545130811632" # Use a random number as salt
 
 # Carrier - Length 5

@@ -1,0 +1,6 @@
+[package]
+name = "temp_calc"
+type = "bin"
+authors = [""]
+
+[dependencies]
