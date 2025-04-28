@@ -1,0 +1,8 @@
+{
+    "testnet": {
+        "ZKVerifier": "0xf463Fc86FfC9eea4e4eF43632D7642a9d45Ba775",
+        "Game Implementation": "0x30874dadcB172CA21706Bd64d9181794CbF3A468",
+        "GameFactory": "0x75d67fc7a0d77128416d2D55b00c857e780999d7",
+        "SHIPToken": "0x8dA0a30376858082A9c21c06416c89C7979bAB88"
+    }
+}

@@ -35,4 +35,4 @@ exclude_paths = [
   wrap_comments = true
 
 [rpc_endpoints]
-MEGAETH = "${MEGA_TESTNET_RPC_URL}"
+MEGAETH_RPC_URL = "${MEGAETH_RPC_URL}"
