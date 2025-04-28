@@ -1,0 +1,17 @@
+warning: unused function dummy_entrypoint
+    ┌─ src/main.nr:218:4
+    │
+218 │ fn dummy_entrypoint() {
+    │    ---------------- unused function
+    │
+
+error: Failed constraint
+   ┌─ /Users/lazerpay/Desktop/open-source/kripson/circuit/board_placement/src/main.nr:88:12
+   │
+88 │     assert(false);
+   │            -----
+   │
+   = Call stack:
+     1. /Users/lazerpay/Desktop/open-source/kripson/circuit/board_placement/src/main.nr:88:12
+
+Failed to solve program: 'Cannot satisfy constraint'
