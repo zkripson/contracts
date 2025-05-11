@@ -1,0 +1,7 @@
+[package]
+name = "board_placement"
+type = "bin"
+authors = ["you"]
+compiler_version = "1.0.0"
+
+[dependencies]
