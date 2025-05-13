@@ -1,11 +1,11 @@
 # Kripson Overview
 
-This project implements an onchain Battleship game leveraging the MegaETH network's low-latency capabilities. Players can create games, place ships, and battle in real-time using smart contracts. The game logic is fully implemented onchain, with state verification and anti-cheat mechanisms built into the protocol.
+This project implements an onchain Battleship game optimized for Layer 2 networks like Base. Players can create games, place ships, and battle in real-time using smart contracts. The game logic is fully implemented onchain, with state verification and anti-cheat mechanisms built into the protocol.
 
 ## Features
 
 - Complete onchain Battleship game mechanics
-- Real-time gameplay using MegaETH's sub-10ms mini blocks
+- Optimized for Layer 2 performance
 - Private ship placement with commit-reveal scheme
 - Fair matchmaking and turn enforcement
 - Upgradeable game contracts for future feature expansion
@@ -213,26 +213,22 @@ chmod +x scripts/pre-build.sh scripts/deploy.sh
 
 ```
 PRIVATE_KEY=your_private_key
-MEGAETH_RPC_URL=your_rpc_url
+BASE_SEPOLIA_RPC_URL=your_rpc_url
+BASE_SEPOLIA_API_KEY=your_api_key_for_verification
 ```
 
 ### Building
 
-To build the project without the verifier contracts:
+To build the project:
 
 ```bash
-./scripts/pre-build.sh
+forge build --optimize
 ```
-
-This script will:
-1. Temporarily move verifier contracts out of the way
-2. Run the Forge build
-3. Restore the verifier contracts afterward
 
 For a build with specific parameters:
 
 ```bash
-./scripts/pre-build.sh --optimize --via-ir
+forge build --optimize --via-ir
 ```
 
 ### Deploying
@@ -244,9 +240,9 @@ To deploy the project:
 ```
 
 This script will:
-1. Run the pre-build script
-2. Deploy the contracts to MegaETH testnet
-3. Verify the contracts on the block explorer
+1. Build the contracts
+2. Deploy the contracts to Base Sepolia testnet
+3. Verify the contracts on the Base Sepolia explorer
 
 
 6. Run tests:
@@ -254,36 +250,41 @@ This script will:
    forge test
    ```
 
-## Deploying to MegaETH
+## Deploying to Base Sepolia
 
-1. Ensure your `.env` file is properly configured with your private key and the MegaETH RPC URL.
+1. Ensure your `.env` file is properly configured with your private key and the Base Sepolia RPC URL.
 
 2. Run the deployment script:
    ```bash
-   forge script script/deploy/Deploy.s.sol --rpc-url $MEGAETH_RPC_URL --broadcast
+   forge script scripts/deploy/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --private-key $PRIVATE_KEY
+   ```
+   
+3. To verify contracts on Base Sepolia explorer:
+   ```bash
+   forge script scripts/deploy/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --verify --etherscan-api-key $BASE_SEPOLIA_API_KEY --private-key $PRIVATE_KEY
    ```
 
-## MegaETH Network Details
+## Base Network Details
 
-MegaETH is a Layer 2 solution with the following features:
+Base is a secure, low-cost, builder-friendly Layer 2 solution built on Ethereum, offering:
 
-- Sequencers that execute transactions and assemble blocks
-- Replica nodes that maintain chain state
-- Realtime API for low-latency (~10ms) access to blockchain state
-- Mini blocks for faster transaction confirmation
-- WebSocket subscriptions for real-time data access
+- Fast transaction confirmations
+- Low gas costs for better user experience
+- Full Ethereum compatibility
+- Strong security guarantees through Optimistic Rollups
+- Reliable infrastructure built by Coinbase
 
-For more details, refer to the [MegaETH documentation](https://docs.megaeth.io).
+For more details, refer to the [Base documentation](https://docs.base.org).
 
-## Using the Realtime API
+## Monitoring Events
 
-MegaETH's Realtime API extends the standard Ethereum JSON-RPC API, providing:
+The system emits various events to track game progression:
 
-- ~10ms latency via mini blocks (compared to 1s+ for standard EVM blocks)
-- Immediate visibility of transaction data
-- WebSocket subscriptions for real-time event streaming
+- Game creation and state transitions
+- Player actions and turn progression
+- Reward distribution on game completion
 
-For API details, see the [Realtime API documentation](https://docs.megaeth.io/realtime-api).
+You can monitor these events using standard Ethereum event listeners or Base's RPC endpoints.
 
 ## License
 

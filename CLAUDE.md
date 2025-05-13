@@ -1,99 +1,136 @@
-## Contract Modification Request: Backend-Driven ZK Battleship
+# Claude Guide for ZK Battleship Project
 
-**Context:** We've simplified our ZK Battleship implementation to handle all gameplay in the backend (Cloudflare Workers). The contracts now only need to:
-1. Create games and assign IDs
-2. Store game metadata and final results
-3. Track player/game statistics
-4. Handle reward distribution on Base
+## Project Context
 
-**Key Changes Needed:**
-1. Simplify BattleshipGameImplementation
-* Remove all ZK verification functionality
-* Remove board submission and shot mechanics
-* Keep only game metadata (players, creation time, etc.)
-* Add a simple `submitGameResult()` function for backend to call
-* Add game statistics storage
-2. Update GameFactory
-* Keep game creation functionality
-* Add player statistics tracking
-* Add game statistics aggregation
-* Remove unnecessary complexity
-3. Enhance ShipToken for Base deployment
-* Ensure proper reward distribution
-* Add anti-abuse measures
-* Keep existing daily limits and cooldowns
-4. Add Statistics Contracts
-* Player statistics (games played, wins, losses, streaks, etc.)
-* Game statistics (total games, average duration, etc.)
-* Leaderboards functionality
+ZK Battleship is an on-chain implementation of the classic Battleship game that uses zero-knowledge proofs to maintain privacy while ensuring fair play. The project runs on the Base network, which provides low gas fees and fast confirmations necessary for interactive gameplay.
 
-**Specific Requirements:**
+## Technical Overview
 
-```solidity
-// Simplified game flow:
-// 1. Frontend calls GameFactory.createGame(opponent) → returns gameId
-// 2. Backend handles gameplay logic
-// 3. Backend calls submitGameResult(gameId, winner, stats)
-// 4. Contract distributes rewards and updates statistics
+### Core Concepts
 
-// New data structures needed:
-struct GameResult {
-    uint256 gameId;
-    address player1;
-    address player2;
-    address winner;
-    uint256 startTime;
-    uint256 endTime;
-    uint256 totalShots;
-    string endReason; // "completed", "forfeit", "timeout", "time_limit"
-}
+- **Zero-Knowledge Proofs**: Used to verify board placement validity, shot results, and game completion without revealing actual board states
+- **UUPS Upgradeability**: Universal Upgradeable Proxy Standard for smart contract upgrades without state loss
+- **Commit-Reveal Scheme**: Players commit to ship positions cryptographically before gameplay begins
+- **On-Chain Gaming**: All game state transitions happen on the blockchain with minimal latency
 
-struct PlayerStats {
-    uint256 totalGames;
-    uint256 wins;
-    uint256 losses;
-    uint256 winStreak;
-    uint256 bestWinStreak;
-    uint256 totalShipsDestroyed;
-    uint256 averageGameDuration;
-    uint256 totalRewardsEarned;
-}
+### Architecture
 
+The system has these primary components:
+
+1. **GameFactory**: Creates game instances and manages player-to-game mappings
+2. **BattleshipGameProxy**: Permanent address for each game instance, delegates to implementation
+3. **BattleshipGameImplementation**: Core game logic and rules with upgradeability built in
+4. **BattleshipStatistics**: Tracks player and game statistics
+5. **ShipToken**: Rewards token for gameplay and victories
+
+## Development Guidance
+
+### Smart Contract Modifications
+
+When modifying smart contracts, be aware of:
+
+1. **Storage Layout**: Never reorder storage variables in upgradeable contracts
+2. **Implementation vs. Proxy**: Logic goes in implementation; proxy should remain minimal
+3. **Gas Optimization**: Use bit-packing and efficient data structures (see GameStorage.sol)
+4. **Access Control**: Respect the role-based permissions defined in contracts
+
+### Integration Pattern
+
+For working with backend-driven ZK Battleship:
+
+1. Backend creates games via GameFactory
+2. Backend handles game logic and validation
+3. Backend submits final results to contracts
+4. Contracts distribute rewards and update statistics
+
+### Common Development Tasks
+
+#### Adding Game Features
+
+1. First modify the implementation contract (BattleshipGameImplementation.sol)
+2. Ensure storage layout compatibility with existing deployment
+3. Test thoroughly with hardhat/foundry
+4. Deploy new implementation
+5. Propose upgrade through GameUpgradeManager
+6. Execute upgrade after timelock period
+
+#### Debugging Gas Issues
+
+1. Use Foundry's gas reports to identify expensive operations
+2. Look for opportunities to pack data more efficiently
+3. Consider whether operations can be batched
+4. Review GameStorage.sol for optimization patterns
+
+#### Handling Upgrades
+
+1. Create new implementation contract
+2. Run storage layout compatibility checks
+3. Use the upgradeability pattern:
+   ```solidity
+   function _authorizeUpgrade(address newImplementation) 
+       internal 
+       override 
+       onlyRole(DEFAULT_ADMIN_ROLE) 
+   {
+       // Validation logic here
+   }
+   ```
+
+## Project Conventions
+
+### Code Style
+
+- Solidity version: ^0.8.20
+- Use OpenZeppelin contracts for standard implementations
+- Follow the NatSpec format for documentation
+- Prefer external over public for functions when possible
+- Use clear error messages in require statements
+
+### Naming Conventions
+
+- Contracts: PascalCase (GameFactory, BattleshipGameImplementation)
+- Functions: camelCase (createGame, submitBoard)
+- State variables: camelCase (gameId, player1)
+- Events: PascalCase (GameCreated, BoardSubmitted)
+
+### Testing Approach
+
+- Unit tests for each contract function
+- Integration tests for complete gameplay flows
+- Mock the ZK verification for most tests
+- Full ZK proof generation and verification in specialized tests
+
+## Deployment Process
+
+1. Update the `.env` file with Base Sepolia settings
+2. Run the deployment script: `./scripts/deploy.sh`
+3. Verify all contracts on Base Sepolia explorer
+4. Update configuration with new contract addresses
+5. Test deployment with backend integration
+
+## Useful Commands
+
+```bash
+# Build the project
+forge build --optimize
+
+# Run tests
+forge test
+
+# Deploy to Base Sepolia
+./scripts/deploy.sh
+
+# Upgrade implementation (after deploying new implementation)
+forge script scripts/upgrade/Upgrade.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast
 ```
 
-**Contract Architecture:**
+## Important Files
 
-```
-GameFactory (creates games, manages player stats)
-    ↓
-BattleshipGameImplementation (simplified, stores results)
-    ↓
-ShipToken (rewards on Base)
+- `src/BattleshipGameImplementation.sol`: Core game logic
+- `src/GameFactory.sol`: Entry point for players, creates game instances
+- `src/BattleshipStatistics.sol`: Player and game statistics tracking
+- `src/libraries/GameStorage.sol`: Optimized storage patterns
+- `src/proxies/BattleshipGameProxy.sol`: Proxy contract for each game instance
+- `src/ShipToken.sol`: ERC-20 token for rewards
 
-```
-
-**Key Functions to Implement:**
-1. **GameFactory.sol:**
-   * `createGame(address opponent)` → returns gameId
-   * `getPlayerStats(address player)` → returns PlayerStats
-   * `getGameStats()` → returns overall statistics
-   * `getLeaderboard(uint256 limit)` → returns top players
-2. **BattleshipGameImplementation.sol:**
-   * `submitGameResult(address winner, uint256 endTime, uint256 totalShots, string endReason)`
-   * `getGameInfo()` → returns game metadata
-   * Remove: ZK functions, board functions, shot functions
-3. **ShipToken.sol:**
-   * Keep existing reward functionality
-   * Ensure Base network compatibility
-   * Add batch reward distribution for gas efficiency
-**Backend Integration Points:**
-* Backend calls `createGame()` when players are ready
-* Backend calls `submitGameResult()` when game ends
-* Backend can query stats for leaderboards/profiles
-* Rewards are automatically distributed when results are submitted
-**Additional Considerations:**
-* Use events for the backend to monitor contract interactions
-* Add access control (only backend can submit results)
-* Handle edge cases (game cancellation, timeout, etc.)
-* Optimize for Base network (low gas costs)
-Please modify the contracts to implement this simplified, backend-driven architecture while maintaining clean code structure and proper access control.
+When working with Claude Code, ask me to focus on specific files or development tasks for more detailed assistance.
