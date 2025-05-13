@@ -14,6 +14,7 @@ optimizer_details = { jumpdest_remover = true, order_literals = true, deduplicat
 viaIR = true
 gas_reports = ["*"]
 solc = "0.8.29"
+fs_permissions = [{ access = "read-write", path = "./broadcast" }]
 
 exclude_paths = [
   "src/verifiers/*.sol"

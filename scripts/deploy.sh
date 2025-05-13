@@ -77,40 +77,52 @@ echo -e "${GREEN}Deployment completed successfully!${NC}"
 # Extract contract addresses from the deployment output file
 echo -e "${YELLOW}Extracting deployed contract addresses...${NC}"
 
-if [ -f "deployment-output.json" ]; then
-    echo -e "${GREEN}Found deployment-output.json${NC}"
+# Set the deployment output file path
+DEPLOYMENT_OUTPUT="./broadcast/Deploy.s.sol/deployment-output.json"
+
+if [ -f "$DEPLOYMENT_OUTPUT" ]; then
+    echo -e "${GREEN}Found $DEPLOYMENT_OUTPUT${NC}"
     
     # Extract addresses using jq if available
     if command -v jq &> /dev/null; then
-        SHIP_TOKEN=$(jq -r '.contracts.SHIPToken' deployment-output.json)
-        GAME_IMPLEMENTATION=$(jq -r '.contracts.BattleshipGameImplementation' deployment-output.json)
-        GAME_STATS=$(jq -r '.contracts.BattleshipStatistics' deployment-output.json)
-        GAME_FACTORY=$(jq -r '.contracts.GameFactoryWithStats' deployment-output.json)
-        BACKEND_ADDRESS=$(jq -r '.config.backend' deployment-output.json)
+        SHIP_TOKEN=$(jq -r '.contracts.SHIPToken' "$DEPLOYMENT_OUTPUT")
+        GAME_IMPLEMENTATION=$(jq -r '.contracts.BattleshipGameImplementation' "$DEPLOYMENT_OUTPUT")
+        GAME_STATS=$(jq -r '.contracts.BattleshipStatistics' "$DEPLOYMENT_OUTPUT")
+        GAME_FACTORY=$(jq -r '.contracts.GameFactoryWithStats' "$DEPLOYMENT_OUTPUT")
+        BACKEND_ADDRESS=$(jq -r '.config.backend' "$DEPLOYMENT_OUTPUT")
     else
         # Fallback to grep if jq is not available
         echo -e "${YELLOW}jq not found, using grep instead${NC}"
-        SHIP_TOKEN=$(grep -o '"SHIPToken": "[^"]*' deployment-output.json | cut -d'"' -f4)
-        GAME_IMPLEMENTATION=$(grep -o '"BattleshipGameImplementation": "[^"]*' deployment-output.json | cut -d'"' -f4)
-        GAME_STATS=$(grep -o '"BattleshipStatistics": "[^"]*' deployment-output.json | cut -d'"' -f4)
-        GAME_FACTORY=$(grep -o '"GameFactoryWithStats": "[^"]*' deployment-output.json | cut -d'"' -f4)
-        BACKEND_ADDRESS=$(grep -o '"backend": "[^"]*' deployment-output.json | cut -d'"' -f4)
+        SHIP_TOKEN=$(grep -o '"SHIPToken": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
+        GAME_IMPLEMENTATION=$(grep -o '"BattleshipGameImplementation": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
+        GAME_STATS=$(grep -o '"BattleshipStatistics": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
+        GAME_FACTORY=$(grep -o '"GameFactoryWithStats": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
+        BACKEND_ADDRESS=$(grep -o '"backend": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
     fi
 else
-    echo -e "${RED}deployment-output.json not found!${NC}"
-    echo -e "${YELLOW}Attempting to extract from logs...${NC}"
+    echo -e "${RED}${DEPLOYMENT_OUTPUT} not found!${NC}"
+    echo -e "${YELLOW}Attempting to extract from Forge deployment logs...${NC}"
     
-    # Create a log file if one doesn't exist from the Forge output
-    if [ ! -f "deployment_logs.txt" ]; then
-        echo -e "${RED}No deployment logs found!${NC}"
+    # Look for broadcasts directory
+    LATEST_BROADCAST=$(find broadcast -name "run-latest.json" | sort | tail -n 1)
+    
+    if [ ! -z "$LATEST_BROADCAST" ]; then
+        echo -e "${GREEN}Found deployment log: $LATEST_BROADCAST${NC}"
+        
+        # Extract addresses from the broadcast logs using grep
+        SHIP_TOKEN=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "SHIPToken" | head -n 1 | cut -d'"' -f4)
+        GAME_IMPLEMENTATION=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "BattleshipGameImplementation" | head -n 1 | cut -d'"' -f4)
+        GAME_STATS=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "BattleshipStatistics" | head -n 1 | cut -d'"' -f4)
+        GAME_FACTORY=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "GameFactoryWithStats" | head -n 1 | cut -d'"' -f4)
+        
+        # Try to extract backend address from environment
+        BACKEND_ADDRESS=${BACKEND_ADDRESS:-$DEPLOYER}
+        
+        echo -e "${GREEN}Extracted addresses from broadcast logs${NC}"
+    else
+        echo -e "${RED}No broadcast logs found!${NC}"
         exit 1
     fi
-    
-    # Try to extract contract addresses from the logs
-    SHIP_TOKEN=$(grep -A 1 "SHIPToken deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
-    GAME_IMPLEMENTATION=$(grep -A 1 "BattleshipGameImplementation deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
-    GAME_STATS=$(grep -A 1 "BattleshipStatistics deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
-    GAME_FACTORY=$(grep -A 1 "GameFactoryWithStats deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
 fi
 
 # Update .env file with deployed addresses
