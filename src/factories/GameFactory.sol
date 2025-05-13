@@ -2,126 +2,308 @@
 pragma solidity >=0.8.29;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/Create2.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../proxies/BattleShipGameProxy.sol";
-import "../BattleShipGameImplementation.sol";
+import "../BattleshipGameImplementation.sol";
+import "../ShipToken.sol";
 
 /**
- * @title GameFactory
- * @notice Creates and manages ZK Battleship game instances
+ * @title GameFactoryWithStats
+ * @notice Creates and manages ZK Battleship games with comprehensive statistics
  */
-contract GameFactory is AccessControl {
+contract GameFactoryWithStats is AccessControl, Pausable {
     // ==================== Roles ====================
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+    bytes32 public constant BACKEND_ROLE = keccak256("BACKEND_ROLE");
+    bytes32 public constant STATS_ROLE = keccak256("STATS_ROLE");
+
+    // ==================== Structs ====================
+    struct PlayerStats {
+        uint256 totalGames;
+        uint256 wins;
+        uint256 losses;
+        uint256 winStreak;
+        uint256 bestWinStreak;
+        uint256 totalShipsDestroyed;
+        uint256 totalGameDuration;
+        uint256 totalRewardsEarned;
+        uint256 firstGameTime;
+        uint256 lastGameTime;
+        uint256 totalShots;
+    }
+
+    struct GameStats {
+        uint256 totalGames;
+        uint256 completedGames;
+        uint256 cancelledGames;
+        uint256 totalPlayTime;
+        uint256 averageGameDuration;
+        uint256 totalShotsAcrossGames;
+        mapping(string => uint256) endReasonCounts;
+    }
+
+    struct LeaderboardEntry {
+        address player;
+        uint256 wins;
+        uint256 winRate; // Percentage (0-10000, where 10000 = 100%)
+        uint256 currentStreak;
+        uint256 bestStreak;
+    }
 
     // ==================== State Variables ====================
-    // Mapping from game ID to game proxy address
     mapping(uint256 => address) public games;
-
-    // Mapping from player address to active game IDs
     mapping(address => uint256[]) public playerGames;
+    mapping(address => PlayerStats) public playerStats;
 
-    // Game ID counter for unique identifiers
     uint256 private nextGameId;
-
-    // Current implementation address
     address public currentImplementation;
+    address public backend;
+    SHIPToken public shipToken;
 
-    // ZK Verifier address
-    address public zkVerifier;
+    GameStats public gameStats;
 
-    // SHIPToken address (for rewards)
-    address public shipToken;
+    // Leaderboard tracking
+    address[] private leaderboardPlayers;
+    mapping(address => bool) private isInLeaderboard;
 
     // ==================== Events ====================
-    event GameCreated(uint256 indexed gameId, address indexed gameAddress, address player1, address player2);
+    event GameCreated(uint256 indexed gameId, address indexed gameAddress, address indexed player1, address player2);
+    event GameCompleted(uint256 indexed gameId, address indexed winner, uint256 duration, uint256 shots);
     event ImplementationUpdated(address indexed oldImplementation, address indexed newImplementation);
-    event GameJoined(uint256 indexed gameId, address indexed player);
-    event GameCancelled(uint256 indexed gameId);
+    event BackendUpdated(address indexed oldBackend, address indexed newBackend);
+    event RewardsDistributed(uint256 indexed gameId, address indexed player, uint256 amount, bool isWinner);
+    event StatsUpdated(address indexed player);
+
+    // ==================== Errors ====================
+    error InvalidImplementation();
+    error InvalidBackend();
+    error GameNotFound();
+    error UnauthorizedCaller();
+    error NoGames();
 
     // ==================== Constructor ====================
-    /**
-     * @notice Constructor sets up initial roles and addresses
-     * @param _implementation Address of the initial game implementation
-     * @param _zkVerifier Address of the ZK verifier contract
-     */
-    constructor(address _implementation, address _zkVerifier) {
-        // Setup admin role
+    constructor(address _implementation, address _backend, address _shipToken) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
+        _grantRole(BACKEND_ROLE, _backend);
 
-        // Set initial addresses
         currentImplementation = _implementation;
-        zkVerifier = _zkVerifier;
+        backend = _backend;
+        shipToken = SHIPToken(_shipToken);
 
-        // Start game ID counter
         nextGameId = 1;
     }
 
+    // ==================== Game Management ====================
+
     /**
      * @notice Create a new game
-     * @param opponent Address of the opponent player
+     * @param player1 Address of first player
+     * @param player2 Address of second player
      * @return gameId Unique identifier for the created game
      */
-    function createGame(address opponent) external returns (uint256 gameId) {
-        // Ensure opponent is not the sender
-        require(opponent != msg.sender, "Cannot play against yourself");
-        require(opponent != address(0), "Invalid opponent address");
+    function createGame(
+        address player1,
+        address player2
+    ) external onlyRole(BACKEND_ROLE) whenNotPaused returns (uint256 gameId) {
+        require(player1 != player2, "Cannot play against yourself");
+        require(player1 != address(0) && player2 != address(0), "Invalid player address");
 
-        // Get new game ID
         gameId = nextGameId++;
 
         // Generate initialization data for the proxy
         bytes memory initData = abi.encodeWithSelector(
             BattleshipGameImplementation.initialize.selector,
             gameId,
-            msg.sender, // player1
-            opponent, // player2
-            address(this), // factory
-            zkVerifier // ZK verifier
+            player1,
+            player2,
+            address(this),
+            backend
         );
 
         // Deploy new proxy contract
         BattleshipGameProxy proxy = new BattleshipGameProxy(currentImplementation, initData);
-
-        // Store game address
         address gameAddress = address(proxy);
+
+        // Store game mapping
         games[gameId] = gameAddress;
 
-        // Add game to creator's active games
-        playerGames[msg.sender].push(gameId);
+        // Add to player's game lists
+        playerGames[player1].push(gameId);
+        playerGames[player2].push(gameId);
 
-        // Emit event
-        emit GameCreated(gameId, gameAddress, msg.sender, opponent);
+        // Initialize player stats if first game
+        if (playerStats[player1].firstGameTime == 0) {
+            playerStats[player1].firstGameTime = block.timestamp;
+            _addToLeaderboard(player1);
+        }
+        if (playerStats[player2].firstGameTime == 0) {
+            playerStats[player2].firstGameTime = block.timestamp;
+            _addToLeaderboard(player2);
+        }
 
+        // Update total games counter
+        gameStats.totalGames++;
+
+        emit GameCreated(gameId, gameAddress, player1, player2);
         return gameId;
     }
 
     /**
-     * @notice Join an existing game
-     * @param gameId ID of the game to join
+     * @notice Report game completion and update statistics
+     * @param gameId ID of the completed game
+     * @param winner Address of the winner (address(0) for draw)
+     * @param duration Game duration in seconds
+     * @param shots Total shots taken
+     * @param endReason How the game ended
      */
-    function joinGame(uint256 gameId) external {
-        // Get game address
+    function reportGameCompletion(
+        uint256 gameId,
+        address winner,
+        uint256 duration,
+        uint256 shots,
+        string memory endReason
+    ) external onlyRole(BACKEND_ROLE) {
         address gameAddress = games[gameId];
-        require(gameAddress != address(0), "Game does not exist");
+        if (gameAddress == address(0)) revert GameNotFound();
 
-        // Check if sender is player2
         BattleshipGameImplementation game = BattleshipGameImplementation(gameAddress);
-        require(game.player2() == msg.sender, "Not authorized to join this game");
+        address player1 = game.player1();
+        address player2 = game.player2();
 
-        // Add game to player's active games
-        playerGames[msg.sender].push(gameId);
+        // Update game statistics
+        gameStats.completedGames++;
+        gameStats.totalPlayTime += duration;
+        gameStats.totalShotsAcrossGames += shots;
+        gameStats.averageGameDuration = gameStats.totalPlayTime / gameStats.completedGames;
+        gameStats.endReasonCounts[endReason]++;
 
-        emit GameJoined(gameId, msg.sender);
+        // Update player statistics
+        _updatePlayerStats(player1, player2, winner, duration, shots);
+
+        // Distribute rewards
+        _distributeRewards(gameId, player1, player2, winner);
+
+        emit GameCompleted(gameId, winner, duration, shots);
     }
 
     /**
-     * @notice Set new implementation address (for upgrades)
-     * @param newImplementation Address of the new implementation contract
+     * @notice Cancel a game and update statistics
+     * @param gameId ID of the game to cancel
+     */
+    function cancelGame(uint256 gameId) external onlyRole(BACKEND_ROLE) {
+        address gameAddress = games[gameId];
+        if (gameAddress == address(0)) revert GameNotFound();
+
+        BattleshipGameImplementation game = BattleshipGameImplementation(gameAddress);
+        game.cancelGame();
+
+        gameStats.cancelledGames++;
+    }
+
+    // ==================== Statistics ====================
+
+    /**
+     * @notice Get player statistics
+     * @param player Address of the player
+     * @return stats Player statistics struct
+     */
+    function getPlayerStats(address player) external view returns (PlayerStats memory stats) {
+        return playerStats[player];
+    }
+
+    /**
+     * @notice Get overall game statistics
+     * @return totalGames Total number of games created
+     * @return completedGames Number of completed games
+     * @return cancelledGames Number of cancelled games
+     * @return averageDuration Average game duration
+     * @return totalShots Total shots across all games
+     */
+    function getGameStats()
+        external
+        view
+        returns (
+            uint256 totalGames,
+            uint256 completedGames,
+            uint256 cancelledGames,
+            uint256 averageDuration,
+            uint256 totalShots
+        )
+    {
+        return (
+            gameStats.totalGames,
+            gameStats.completedGames,
+            gameStats.cancelledGames,
+            gameStats.averageGameDuration,
+            gameStats.totalShotsAcrossGames
+        );
+    }
+
+    /**
+     * @notice Get leaderboard of top players
+     * @param limit Maximum number of entries to return
+     * @return entries Array of leaderboard entries
+     */
+    function getLeaderboard(uint256 limit) external view returns (LeaderboardEntry[] memory entries) {
+        uint256 totalPlayers = leaderboardPlayers.length;
+        uint256 returnCount = limit > totalPlayers ? totalPlayers : limit;
+
+        entries = new LeaderboardEntry[](returnCount);
+
+        // Create a sorted list of entries
+        LeaderboardEntry[] memory tempEntries = new LeaderboardEntry[](totalPlayers);
+
+        // Fill temp array
+        for (uint256 i = 0; i < totalPlayers; i++) {
+            address player = leaderboardPlayers[i];
+            PlayerStats memory stats = playerStats[player];
+
+            tempEntries[i] = LeaderboardEntry({
+                player: player,
+                wins: stats.wins,
+                winRate: stats.totalGames > 0 ? (stats.wins * 10000) / stats.totalGames : 0,
+                currentStreak: stats.winStreak,
+                bestStreak: stats.bestWinStreak
+            });
+        }
+
+        // Simple bubble sort by wins (could be optimized)
+        for (uint256 i = 0; i < totalPlayers - 1; i++) {
+            for (uint256 j = 0; j < totalPlayers - i - 1; j++) {
+                if (tempEntries[j].wins < tempEntries[j + 1].wins) {
+                    LeaderboardEntry memory temp = tempEntries[j];
+                    tempEntries[j] = tempEntries[j + 1];
+                    tempEntries[j + 1] = temp;
+                }
+            }
+        }
+
+        // Copy top entries
+        for (uint256 i = 0; i < returnCount; i++) {
+            entries[i] = tempEntries[i];
+        }
+
+        return entries;
+    }
+
+    /**
+     * @notice Get player's game history
+     * @param player Address of the player
+     * @return gameIds Array of game IDs the player participated in
+     */
+    function getPlayerGames(address player) external view returns (uint256[] memory gameIds) {
+        return playerGames[player];
+    }
+
+    // ==================== Admin Functions ====================
+
+    /**
+     * @notice Set new implementation address
+     * @param newImplementation Address of the new implementation
      */
     function setImplementation(address newImplementation) external onlyRole(UPGRADER_ROLE) {
-        require(newImplementation != address(0), "Invalid implementation address");
+        if (newImplementation == address(0)) revert InvalidImplementation();
 
         address oldImplementation = currentImplementation;
         currentImplementation = newImplementation;
@@ -130,51 +312,141 @@ contract GameFactory is AccessControl {
     }
 
     /**
-     * @notice Cancel a game that hasn't started
-     * @param gameId ID of the game to cancel
+     * @notice Update backend address
+     * @param newBackend New backend address
      */
-    function cancelGame(uint256 gameId) external {
-        // Get game address
-        address gameAddress = games[gameId];
-        require(gameAddress != address(0), "Game does not exist");
+    function setBackend(address newBackend) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newBackend == address(0)) revert InvalidBackend();
 
-        // Get game contract instance
-        BattleshipGameImplementation game = BattleshipGameImplementation(gameAddress);
+        address oldBackend = backend;
 
-        // Check that caller is a player
-        require(game.player1() == msg.sender || game.player2() == msg.sender, "Not a player in this game");
+        // Update role
+        _revokeRole(BACKEND_ROLE, oldBackend);
+        _grantRole(BACKEND_ROLE, newBackend);
 
-        // Cancel the game (game contract will check state)
-        game.cancelGame();
+        backend = newBackend;
 
-        // Emit event
-        emit GameCancelled(gameId);
+        emit BackendUpdated(oldBackend, newBackend);
     }
 
     /**
-     * @notice Get list of active games for a player
-     * @param player Address of the player
-     * @return List of game IDs
-     */
-    function getPlayerGames(address player) external view returns (uint256[] memory) {
-        return playerGames[player];
-    }
-
-    /**
-     * @notice Set the SHIPToken address (for rewards)
+     * @notice Set SHIPToken address
      * @param _shipToken Address of the token contract
      */
     function setShipToken(address _shipToken) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_shipToken != address(0), "Invalid token address");
-        shipToken = _shipToken;
+        shipToken = SHIPToken(_shipToken);
     }
 
     /**
-     * @notice Set the ZK verifier address
-     * @param _zkVerifier Address of the verifier contract
+     * @notice Pause the factory
      */
-    function setZKVerifier(address _zkVerifier) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_zkVerifier != address(0), "Invalid verifier address");
-        zkVerifier = _zkVerifier;
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _pause();
+    }
+
+    /**
+     * @notice Unpause the factory
+     */
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
+    // ==================== Internal Functions ====================
+
+    /**
+     * @notice Update player statistics after a game
+     * @param player1 First player address
+     * @param player2 Second player address
+     * @param winner Winner address (address(0) for draw)
+     * @param duration Game duration
+     * @param shots Total shots
+     */
+    function _updatePlayerStats(
+        address player1,
+        address player2,
+        address winner,
+        uint256 duration,
+        uint256 shots
+    ) internal {
+        // Update both players' game counts and duration
+        playerStats[player1].totalGames++;
+        playerStats[player1].totalGameDuration += duration;
+        playerStats[player1].lastGameTime = block.timestamp;
+        playerStats[player1].totalShots += shots;
+
+        playerStats[player2].totalGames++;
+        playerStats[player2].totalGameDuration += duration;
+        playerStats[player2].lastGameTime = block.timestamp;
+
+        // Handle win/loss and streaks
+        if (winner == address(0)) {
+            // Draw - reset both streaks
+            playerStats[player1].winStreak = 0;
+            playerStats[player2].winStreak = 0;
+        } else if (winner == player1) {
+            // Player1 wins
+            playerStats[player1].wins++;
+            playerStats[player1].winStreak++;
+            if (playerStats[player1].winStreak > playerStats[player1].bestWinStreak) {
+                playerStats[player1].bestWinStreak = playerStats[player1].winStreak;
+            }
+
+            playerStats[player2].losses++;
+            playerStats[player2].winStreak = 0;
+        } else {
+            // Player2 wins
+            playerStats[player2].wins++;
+            playerStats[player2].winStreak++;
+            if (playerStats[player2].winStreak > playerStats[player2].bestWinStreak) {
+                playerStats[player2].bestWinStreak = playerStats[player2].winStreak;
+            }
+
+            playerStats[player1].losses++;
+            playerStats[player1].winStreak = 0;
+        }
+
+        emit StatsUpdated(player1);
+        emit StatsUpdated(player2);
+    }
+
+    /**
+     * @notice Distribute rewards to players
+     * @param gameId Game ID
+     * @param player1 First player
+     * @param player2 Second player
+     * @param winner Winner (address(0) for draw)
+     */
+    function _distributeRewards(uint256 gameId, address player1, address player2, address winner) internal {
+        // Both players get participation rewards
+        uint256 participationReward = shipToken.participationReward();
+        uint256 victoryBonus = shipToken.victoryBonus();
+
+        try shipToken.mintGameReward(player1, winner == player1, gameId) {
+            uint256 reward1 = participationReward + (winner == player1 ? victoryBonus : 0);
+            playerStats[player1].totalRewardsEarned += reward1;
+            emit RewardsDistributed(gameId, player1, reward1, winner == player1);
+        } catch {
+            // Handle reward failure - could be cooldown or daily limit
+        }
+
+        try shipToken.mintGameReward(player2, winner == player2, gameId) {
+            uint256 reward2 = participationReward + (winner == player2 ? victoryBonus : 0);
+            playerStats[player2].totalRewardsEarned += reward2;
+            emit RewardsDistributed(gameId, player2, reward2, winner == player2);
+        } catch {
+            // Handle reward failure - could be cooldown or daily limit
+        }
+    }
+
+    /**
+     * @notice Add player to leaderboard tracking
+     * @param player Player address
+     */
+    function _addToLeaderboard(address player) internal {
+        if (!isInLeaderboard[player]) {
+            leaderboardPlayers.push(player);
+            isInLeaderboard[player] = true;
+        }
     }
 }

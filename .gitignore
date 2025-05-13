@@ -40,3 +40,4 @@ circuits/**/proofs/
 circuits/**/Prover.toml
 circuits/**/Verifier.toml
 deploy
+**/.claude/settings.local.json
