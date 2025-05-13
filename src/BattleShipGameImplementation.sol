@@ -201,17 +201,24 @@ contract BattleshipGameImplementation is Initializable, UUPSUpgradeable, AccessC
 
     /**
      * @notice Get game information
-     * @return id Game ID
-     * @return p1 Address of player 1
-     * @return p2 Address of player 2
-     * @return currentState Current game state
-     * @return created Timestamp when game was created
-     * @return result Game result struct
+     * @return gameId Game ID
+     * @return player1 Address of player 1
+     * @return player2 Address of player 2
+     * @return state Current game state
+     * @return createdAt Timestamp when game was created
+     * @return gameResult Game result struct
      */
     function getGameInfo()
         external
         view
-        returns (uint256 id, address p1, address p2, GameState currentState, uint256 created, GameResult memory result)
+        returns (
+            uint256 gameId,
+            address player1,
+            address player2,
+            GameState state,
+            uint256 createdAt,
+            GameResult memory gameResult
+        )
     {
         return (gameId, player1, player2, state, createdAt, gameResult);
     }
