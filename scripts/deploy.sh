@@ -24,8 +24,8 @@ echo -e "${YELLOW}Loading environment variables...${NC}"
 source .env
 
 # Ensure required variables are set
-if [ -z "$MEGAETH_RPC_URL" ]; then
-    echo -e "${RED}Error: MEGAETH_RPC_URL not set in .env file${NC}"
+if [ -z "$BASE_SEPOLIA_RPC_URL" ]; then
+    echo -e "${RED}Error: BASE_SEPOLIA_RPC_URL not set in .env file${NC}"
     exit 1
 fi
 
@@ -47,23 +47,19 @@ echo -e "${YELLOW}Building contracts...${NC}"
 forge build --optimize
 
 # Confirm deployment
-echo -e "${YELLOW}Ready to deploy ZK Battleship contracts to MegaETH${NC}"
-echo -e "RPC URL: ${MEGAETH_RPC_URL}"
-echo -e "Verifier Addresses:"
-echo -e "  Board Placement: ${BOARD_PLACEMENT_VERIFIER}"
-echo -e "  Shot Result: ${SHOT_RESULT_VERIFIER}"
-echo -e "  Game End: ${GAME_END_VERIFIER}"
+echo -e "${YELLOW}Ready to deploy ZK Battleship contracts to Base Sepolia${NC}"
+echo -e "RPC URL: ${BASE_SEPOLIA_RPC_URL}"
 
 read -p "Press Enter to begin deployment or Ctrl+C to cancel..."
 
 # Deploy contracts
 echo -e "${YELLOW}Deploying contracts...${NC}"
 
-DEPLOY_COMMAND="forge script scripts/deploy/Deploy.s.sol:DeployZKBattleship --rpc-url $MEGAETH_RPC_URL --broadcast -vvvv --private-key $PRIVATE_KEY"
+DEPLOY_COMMAND="forge script scripts/deploy/Deploy.s.sol:DeployZKBattleship --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast -vvvv --private-key $PRIVATE_KEY"
 
-# Add verification if MEGAETH_API_KEY is provided
-if [ ! -z "$MEGAETH_API_KEY" ]; then
-    DEPLOY_COMMAND="$DEPLOY_COMMAND --verify --etherscan-api-key $MEGAETH_API_KEY"
+# Add verification if BASE_API_KEY is provided
+if [ ! -z "$BASE_SEPOLIA_API_KEY" ]; then
+    DEPLOY_COMMAND="$DEPLOY_COMMAND --verify --etherscan-api-key $BASE_SEPOLIA_API_KEY"
 fi
 
 # Execute deployment
@@ -78,28 +74,57 @@ fi
 
 echo -e "${GREEN}Deployment completed successfully!${NC}"
 
-# Extract contract addresses from the logs
+# Extract contract addresses from the deployment output file
 echo -e "${YELLOW}Extracting deployed contract addresses...${NC}"
-LOGS_FILE="deployment_logs.txt"
 
-# Try to extract contract addresses from the logs
-ZK_VERIFIER=$(grep -A 1 "ZKVerifier deployed at:" $LOGS_FILE | tail -n 1 | tr -d ' ')
-GAME_IMPLEMENTATION=$(grep -A 1 "BattleShipGameImplementation deployed at:" $LOGS_FILE | tail -n 1 | tr -d ' ')
-GAME_FACTORY=$(grep -A 1 "GameFactory deployed at:" $LOGS_FILE | tail -n 1 | tr -d ' ')
-SHIP_TOKEN=$(grep -A 1 "SHIPToken deployed at:" $LOGS_FILE | tail -n 1 | tr -d ' ')
+if [ -f "deployment-output.json" ]; then
+    echo -e "${GREEN}Found deployment-output.json${NC}"
+    
+    # Extract addresses using jq if available
+    if command -v jq &> /dev/null; then
+        SHIP_TOKEN=$(jq -r '.contracts.SHIPToken' deployment-output.json)
+        GAME_IMPLEMENTATION=$(jq -r '.contracts.BattleshipGameImplementation' deployment-output.json)
+        GAME_STATS=$(jq -r '.contracts.BattleshipStatistics' deployment-output.json)
+        GAME_FACTORY=$(jq -r '.contracts.GameFactoryWithStats' deployment-output.json)
+        BACKEND_ADDRESS=$(jq -r '.config.backend' deployment-output.json)
+    else
+        # Fallback to grep if jq is not available
+        echo -e "${YELLOW}jq not found, using grep instead${NC}"
+        SHIP_TOKEN=$(grep -o '"SHIPToken": "[^"]*' deployment-output.json | cut -d'"' -f4)
+        GAME_IMPLEMENTATION=$(grep -o '"BattleshipGameImplementation": "[^"]*' deployment-output.json | cut -d'"' -f4)
+        GAME_STATS=$(grep -o '"BattleshipStatistics": "[^"]*' deployment-output.json | cut -d'"' -f4)
+        GAME_FACTORY=$(grep -o '"GameFactoryWithStats": "[^"]*' deployment-output.json | cut -d'"' -f4)
+        BACKEND_ADDRESS=$(grep -o '"backend": "[^"]*' deployment-output.json | cut -d'"' -f4)
+    fi
+else
+    echo -e "${RED}deployment-output.json not found!${NC}"
+    echo -e "${YELLOW}Attempting to extract from logs...${NC}"
+    
+    # Create a log file if one doesn't exist from the Forge output
+    if [ ! -f "deployment_logs.txt" ]; then
+        echo -e "${RED}No deployment logs found!${NC}"
+        exit 1
+    fi
+    
+    # Try to extract contract addresses from the logs
+    SHIP_TOKEN=$(grep -A 1 "SHIPToken deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
+    GAME_IMPLEMENTATION=$(grep -A 1 "BattleshipGameImplementation deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
+    GAME_STATS=$(grep -A 1 "BattleshipStatistics deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
+    GAME_FACTORY=$(grep -A 1 "GameFactoryWithStats deployed at:" deployment_logs.txt | tail -n 1 | tr -d ' ')
+fi
 
 # Update .env file with deployed addresses
-if [ ! -z "$ZK_VERIFIER" ] && [ ! -z "$GAME_IMPLEMENTATION" ] && [ ! -z "$GAME_FACTORY" ] && [ ! -z "$SHIP_TOKEN" ]; then
+if [ ! -z "$SHIP_TOKEN" ] && [ ! -z "$GAME_IMPLEMENTATION" ] && [ ! -z "$GAME_FACTORY" ]; then
     echo -e "${YELLOW}Updating .env file with deployed addresses...${NC}"
     
     # Create a backup of the .env file
     cp .env .env.backup
     
     # Update the .env file
-    sed -i "s/ZK_VERIFIER_ADDRESS=.*/ZK_VERIFIER_ADDRESS=$ZK_VERIFIER/" .env
-    sed -i "s/GAME_IMPLEMENTATION_ADDRESS=.*/GAME_IMPLEMENTATION_ADDRESS=$GAME_IMPLEMENTATION/" .env
-    sed -i "s/GAME_FACTORY_ADDRESS=.*/GAME_FACTORY_ADDRESS=$GAME_FACTORY/" .env
     sed -i "s/SHIP_TOKEN_ADDRESS=.*/SHIP_TOKEN_ADDRESS=$SHIP_TOKEN/" .env
+    sed -i "s/GAME_IMPLEMENTATION_ADDRESS=.*/GAME_IMPLEMENTATION_ADDRESS=$GAME_IMPLEMENTATION/" .env
+    sed -i "s/STATS_ADDRESS=.*/STATS_ADDRESS=$GAME_STATS/" .env
+    sed -i "s/GAME_FACTORY_ADDRESS=.*/GAME_FACTORY_ADDRESS=$GAME_FACTORY/" .env
     
     echo -e "${GREEN}Environment variables updated in .env file${NC}"
 fi
@@ -112,24 +137,21 @@ CURRENT_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 cat > temp_config.json << EOF
 {
   "environments": {
-    "megaeth-testnet": {
-      "network": "MegaETH Testnet",
-      "rpc": "$MEGAETH_RPC_URL",
-      "ws": "$MEGAETH_WS_URL",
-      "explorer": "https://explorer.megaeth.io",
-      "verifiers": {
-        "boardPlacementVerifier": "$BOARD_PLACEMENT_VERIFIER",
-        "shotResultVerifier": "$SHOT_RESULT_VERIFIER",
-        "gameEndVerifier": "$GAME_END_VERIFIER"
-      },
+    "base-sepolia": {
+      "network": "Base Sepolia Testnet",
+      "rpc": "$BASE_SEPOLIA_RPC_URL",
+      "ws": "$BASE_SEPOLIA_WS_URL",
+      "explorer": "https://sepolia.basescan.org",
       "contracts": {
-        "zkVerifier": "$ZK_VERIFIER",
+        "shipToken": "$SHIP_TOKEN",
         "gameImplementation": "$GAME_IMPLEMENTATION",
-        "gameFactory": "$GAME_FACTORY",
-        "shipToken": "$SHIP_TOKEN"
+        "gameStatistics": "$GAME_STATS",
+        "gameFactory": "$GAME_FACTORY"
       },
-      "deploymentDate": "$CURRENT_DATE",
-      "deploymentTx": ""
+      "config": {
+        "backend": "$BACKEND_ADDRESS"
+      },
+      "deploymentDate": "$CURRENT_DATE"
     }
   }
 }
@@ -144,13 +166,15 @@ echo -e "${GREEN}Deployment configuration updated${NC}"
 echo -e "${BLUE}===============================================${NC}"
 echo -e "${BLUE}         Deployment Summary                   ${NC}"
 echo -e "${BLUE}===============================================${NC}"
-echo -e "${GREEN}ZKVerifier:${NC} $ZK_VERIFIER"
-echo -e "${GREEN}GameImplementation:${NC} $GAME_IMPLEMENTATION"
-echo -e "${GREEN}GameFactory:${NC} $GAME_FACTORY"
 echo -e "${GREEN}SHIPToken:${NC} $SHIP_TOKEN"
+echo -e "${GREEN}GameImplementation:${NC} $GAME_IMPLEMENTATION"
+echo -e "${GREEN}BattleshipStatistics:${NC} $GAME_STATS"
+echo -e "${GREEN}GameFactory:${NC} $GAME_FACTORY"
+echo -e "${GREEN}Backend Address:${NC} $BACKEND_ADDRESS"
 echo -e "${BLUE}===============================================${NC}"
 echo -e "${GREEN}Deployment completed successfully!${NC}"
 echo -e "Next steps:"
-echo -e "1. Verify the deployment with: node verify-deployment.js"
-echo -e "2. For monitoring game events: node megaeth-realtime-monitor.js <gameAddress>"
+echo -e "1. Configure your backend to use these contract addresses"
+echo -e "2. Run tests against Base Sepolia testnet"
+echo -e "3. Monitor transactions on Base Sepolia explorer: https://sepolia.basescan.org"
 echo -e "${BLUE}===============================================${NC}"
