@@ -29,7 +29,6 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         uint256 totalRewardsEarned;
         uint256 firstGameTime;
         uint256 lastGameTime;
-        uint256 totalShots;
     }
 
     struct GameStats {
@@ -179,7 +178,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         gameStats.endReasonCounts[endReason]++;
 
         // Update player statistics
-        _updatePlayerStats(player1, player2, winner, duration, shots);
+        _updatePlayerStats(player1, player2, winner, duration);
 
         // Distribute rewards
         _distributeRewards(gameId, player1, player2, winner);
@@ -360,20 +359,12 @@ contract GameFactoryWithStats is AccessControl, Pausable {
      * @param player2 Second player address
      * @param winner Winner address (address(0) for draw)
      * @param duration Game duration
-     * @param shots Total shots
      */
-    function _updatePlayerStats(
-        address player1,
-        address player2,
-        address winner,
-        uint256 duration,
-        uint256 shots
-    ) internal {
+    function _updatePlayerStats(address player1, address player2, address winner, uint256 duration) internal {
         // Update both players' game counts and duration
         playerStats[player1].totalGames++;
         playerStats[player1].totalGameDuration += duration;
         playerStats[player1].lastGameTime = block.timestamp;
-        playerStats[player1].totalShots += shots;
 
         playerStats[player2].totalGames++;
         playerStats[player2].totalGameDuration += duration;
