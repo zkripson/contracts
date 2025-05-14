@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../proxies/BattleShipGameProxy.sol";
 import "../BattleshipGameImplementation.sol";
 import "../ShipToken.sol";
+import "../BattleshipStatistics.sol";
 
 /**
  * @title GameFactoryWithStats
@@ -58,6 +59,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     address public currentImplementation;
     address public backend;
     SHIPToken public shipToken;
+    BattleshipStatistics public statistics;
 
     GameStats public gameStats;
 
@@ -81,7 +83,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     error NoGames();
 
     // ==================== Constructor ====================
-    constructor(address _implementation, address _backend, address _shipToken) {
+    constructor(address _implementation, address _backend, address _shipToken, address _statistics) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
         _grantRole(BACKEND_ROLE, _backend);
@@ -89,6 +91,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         currentImplementation = _implementation;
         backend = _backend;
         shipToken = SHIPToken(_shipToken);
+        statistics = BattleshipStatistics(_statistics);
 
         nextGameId = 1;
     }
@@ -181,7 +184,42 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         _updatePlayerStats(player1, player2, winner, duration);
 
         // Distribute rewards
-        _distributeRewards(gameId, player1, player2, winner);
+        uint256 player1Rewards = 0;
+        uint256 player2Rewards = 0;
+        (player1Rewards, player2Rewards) = _distributeRewards(gameId, player1, player2, winner);
+
+        // Update comprehensive statistics in BattleshipStatistics contract
+        if (winner == address(0)) {
+            // Draw case
+            statistics.recordDraw(
+                player1, 
+                player2, 
+                duration,
+                shots,
+                endReason
+            );
+        } else {
+            // Winner case - update both players
+            statistics.recordGameResult(
+                player1, 
+                winner == player1, 
+                gameId, 
+                duration, 
+                shots / 2, // Approximate shots for each player 
+                endReason, 
+                player1Rewards
+            );
+            
+            statistics.recordGameResult(
+                player2, 
+                winner == player2, 
+                gameId, 
+                duration, 
+                shots / 2, // Approximate shots for each player
+                endReason, 
+                player2Rewards
+            );
+        }
 
         emit GameCompleted(gameId, winner, duration, shots);
     }
@@ -195,9 +233,22 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         if (gameAddress == address(0)) revert GameNotFound();
 
         BattleshipGameImplementation game = BattleshipGameImplementation(gameAddress);
+        address player1 = game.player1();
+        address player2 = game.player2();
+        
         game.cancelGame();
 
         gameStats.cancelledGames++;
+        
+        // Update comprehensive statistics in BattleshipStatistics
+        // Record as a draw with "cancelled" as the end reason
+        statistics.recordDraw(
+            player1,
+            player2,
+            0, // Duration is 0 since game was cancelled
+            0, // No shots taken
+            "cancelled"
+        );
     }
 
     // ==================== Statistics ====================
@@ -336,6 +387,15 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         require(_shipToken != address(0), "Invalid token address");
         shipToken = SHIPToken(_shipToken);
     }
+    
+    /**
+     * @notice Set BattleshipStatistics address
+     * @param _statistics Address of the statistics contract
+     */
+    function setStatistics(address _statistics) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_statistics != address(0), "Invalid statistics address");
+        statistics = BattleshipStatistics(_statistics);
+    }
 
     /**
      * @notice Pause the factory
@@ -407,27 +467,40 @@ contract GameFactoryWithStats is AccessControl, Pausable {
      * @param player1 First player
      * @param player2 Second player
      * @param winner Winner (address(0) for draw)
+     * @return player1Reward Amount rewarded to player1
+     * @return player2Reward Amount rewarded to player2
      */
-    function _distributeRewards(uint256 gameId, address player1, address player2, address winner) internal {
+    function _distributeRewards(
+        uint256 gameId, 
+        address player1, 
+        address player2, 
+        address winner
+    ) internal returns (uint256 player1Reward, uint256 player2Reward) {
         // Both players get participation rewards
         uint256 participationReward = shipToken.participationReward();
         uint256 victoryBonus = shipToken.victoryBonus();
 
+        // Calculate rewards
+        player1Reward = participationReward + (winner == player1 ? victoryBonus : 0);
+        player2Reward = participationReward + (winner == player2 ? victoryBonus : 0);
+
         try shipToken.mintGameReward(player1, winner == player1, gameId) {
-            uint256 reward1 = participationReward + (winner == player1 ? victoryBonus : 0);
-            playerStats[player1].totalRewardsEarned += reward1;
-            emit RewardsDistributed(gameId, player1, reward1, winner == player1);
+            playerStats[player1].totalRewardsEarned += player1Reward;
+            emit RewardsDistributed(gameId, player1, player1Reward, winner == player1);
         } catch {
             // Handle reward failure - could be cooldown or daily limit
+            player1Reward = 0; // If minting fails, set reward to 0
         }
 
         try shipToken.mintGameReward(player2, winner == player2, gameId) {
-            uint256 reward2 = participationReward + (winner == player2 ? victoryBonus : 0);
-            playerStats[player2].totalRewardsEarned += reward2;
-            emit RewardsDistributed(gameId, player2, reward2, winner == player2);
+            playerStats[player2].totalRewardsEarned += player2Reward;
+            emit RewardsDistributed(gameId, player2, player2Reward, winner == player2);
         } catch {
             // Handle reward failure - could be cooldown or daily limit
+            player2Reward = 0; // If minting fails, set reward to 0
         }
+        
+        return (player1Reward, player2Reward);
     }
 
     /**
