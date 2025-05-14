@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.29;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {BattleshipGameImplementation} from "../../src/BattleshipGameImplementation.sol";
-import {GameFactoryWithStats} from "../../src/factories/GameFactory.sol";
-import {SHIPToken} from "../../src/ShipToken.sol";
-import {BattleshipStatistics} from "../../src/BattleshipStatistics.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { BattleshipGameImplementation } from "../../src/BattleshipGameImplementation.sol";
+import { GameFactoryWithStats } from "../../src/factories/GameFactory.sol";
+import { SHIPToken } from "../../src/ShipToken.sol";
+import { BattleshipStatistics } from "../../src/BattleshipStatistics.sol";
 
 contract GameFlowTest is Test {
     // Contracts
@@ -50,7 +50,7 @@ contract GameFlowTest is Test {
     // Test a complete game flow
     function testCompleteGameFlow() public {
         // Create a simplified test focused only on game initialization and completion
-        
+
         // 1. Create Game
         vm.prank(BACKEND);
         gameId = factory.createGame(PLAYER1, PLAYER2);
@@ -81,7 +81,7 @@ contract GameFlowTest is Test {
 
         // Verify game result directly using individual getters rather than getGameInfo()
         assertEq(uint256(game.state()), uint256(BattleshipGameImplementation.GameState.Completed));
-        
+
         // Verify the game duration
         assertEq(game.getGameDuration(), 300);
     }
@@ -140,7 +140,8 @@ contract GameFlowTest is Test {
         gameAddress = factory.games(gameId);
         BattleshipGameImplementation game = BattleshipGameImplementation(gameAddress);
 
-        // Deploy new implementation (for testing we'll use the same contract, but in reality it would be an upgraded version)
+        // Deploy new implementation (for testing we'll use the same contract, but in reality it would be an upgraded
+        // version)
         BattleshipGameImplementation newImplementation = new BattleshipGameImplementation();
 
         // Update implementation in factory
@@ -183,7 +184,7 @@ contract GameFlowTest is Test {
     function testPauseAndUnpause() public {
         // We only need to test the factory pause functionality, since we can't
         // directly access the game contract's admin functions in this integration test
-        
+
         // Pause the factory
         vm.prank(ADMIN);
         factory.pause();

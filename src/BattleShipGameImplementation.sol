@@ -11,7 +11,12 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
  * @dev  game logic for backend-driven ZK Battleship
  * @notice This implementation only stores game metadata and results
  */
-contract BattleshipGameImplementation is Initializable, UUPSUpgradeable, AccessControlUpgradeable, PausableUpgradeable {
+contract BattleshipGameImplementation is
+    Initializable,
+    UUPSUpgradeable,
+    AccessControlUpgradeable,
+    PausableUpgradeable
+{
     // ==================== Version Tracking ====================
     string public constant VERSION = "2.0.0";
 
@@ -25,6 +30,7 @@ contract BattleshipGameImplementation is Initializable, UUPSUpgradeable, AccessC
         Active, // Game is being played (backend handles gameplay)
         Completed, // Game completed with a winner
         Cancelled // Game cancelled
+
     }
 
     // ==================== Structs ====================
@@ -53,11 +59,7 @@ contract BattleshipGameImplementation is Initializable, UUPSUpgradeable, AccessC
     // ==================== Events ====================
     event GameStarted(uint256 indexed gameId, uint256 startTime);
     event GameCompleted(
-        uint256 indexed gameId,
-        address indexed winner,
-        uint256 endTime,
-        uint256 totalShots,
-        string endReason
+        uint256 indexed gameId, address indexed winner, uint256 endTime, uint256 totalShots, string endReason
     );
     event GameCancelled(uint256 indexed gameId);
     event BackendUpdated(address indexed oldBackend, address indexed newBackend);
@@ -87,7 +89,10 @@ contract BattleshipGameImplementation is Initializable, UUPSUpgradeable, AccessC
         address _player2,
         address _factory,
         address _backend
-    ) public initializer {
+    )
+        public
+        initializer
+    {
         __UUPSUpgradeable_init();
         __AccessControl_init();
         __Pausable_init();
@@ -129,7 +134,10 @@ contract BattleshipGameImplementation is Initializable, UUPSUpgradeable, AccessC
         address winner,
         uint256 totalShots,
         string memory endReason
-    ) external onlyRole(BACKEND_ROLE) {
+    )
+        external
+        onlyRole(BACKEND_ROLE)
+    {
         if (state != GameState.Active) revert InvalidGameState();
         if (winner != address(0) && winner != player1 && winner != player2) {
             revert InvalidPlayer();

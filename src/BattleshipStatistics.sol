@@ -119,7 +119,11 @@ contract BattleshipStatistics is AccessControl, Pausable {
         uint256 shots,
         string memory endReason,
         uint256 rewardEarned
-    ) external onlyRole(STATS_UPDATER_ROLE) whenNotPaused {
+    )
+        external
+        onlyRole(STATS_UPDATER_ROLE)
+        whenNotPaused
+    {
         // Check if new player
         if (!hasPlayedGame[player]) {
             _addNewPlayer(player);
@@ -182,7 +186,11 @@ contract BattleshipStatistics is AccessControl, Pausable {
         uint256 duration,
         uint256 shots,
         string memory endReason
-    ) external onlyRole(STATS_UPDATER_ROLE) whenNotPaused {
+    )
+        external
+        onlyRole(STATS_UPDATER_ROLE)
+        whenNotPaused
+    {
         // Both players get a draw
         if (!hasPlayedGame[player1]) _addNewPlayer(player1);
         if (!hasPlayedGame[player2]) _addNewPlayer(player2);
@@ -193,7 +201,7 @@ contract BattleshipStatistics is AccessControl, Pausable {
         PlayerStats storage stats2 = playerStats[player2];
 
         // Update both players
-        for (uint i = 0; i < 2; i++) {
+        for (uint256 i = 0; i < 2; i++) {
             PlayerStats storage stats = i == 0 ? stats1 : stats2;
 
             stats.totalGames++;
@@ -231,9 +239,7 @@ contract BattleshipStatistics is AccessControl, Pausable {
      * @return gamesThisWeek Number of games played this week
      * @return weeklyWinRate Win rate for this week (0-10000)
      */
-    function getPlayerStats(
-        address player
-    )
+    function getPlayerStats(address player)
         external
         view
         returns (
@@ -253,8 +259,8 @@ contract BattleshipStatistics is AccessControl, Pausable {
         PlayerStats storage stats = playerStats[player];
 
         uint256 avgDuration = stats.totalGames > 0 ? stats.totalGameDuration / stats.totalGames : 0;
-        uint256 winRateCalc = stats.totalGames > 0 ? (stats.wins * 10000) / stats.totalGames : 0;
-        uint256 weeklyWinRateCalc = stats.gamesThisWeek > 0 ? (stats.weeklyWins * 10000) / stats.gamesThisWeek : 0;
+        uint256 winRateCalc = stats.totalGames > 0 ? (stats.wins * 10_000) / stats.totalGames : 0;
+        uint256 weeklyWinRateCalc = stats.gamesThisWeek > 0 ? (stats.weeklyWins * 10_000) / stats.gamesThisWeek : 0;
 
         return (
             stats.totalGames,
@@ -314,7 +320,11 @@ contract BattleshipStatistics is AccessControl, Pausable {
     function getLeaderboard(
         bytes32 leaderboardType,
         uint256 limit
-    ) external view returns (LeaderboardEntry[] memory entries) {
+    )
+        external
+        view
+        returns (LeaderboardEntry[] memory entries)
+    {
         LeaderboardEntry[] storage board = leaderboards[leaderboardType];
         uint256 length = board.length > limit ? limit : board.length;
 
@@ -532,7 +542,7 @@ contract BattleshipStatistics is AccessControl, Pausable {
                     player: player,
                     score: score,
                     rank: 0 // Will be updated in sort
-                })
+                 })
             );
         }
 
@@ -559,7 +569,7 @@ contract BattleshipStatistics is AccessControl, Pausable {
         if (leaderboardType == WINS_LEADERBOARD) {
             return stats.wins;
         } else if (leaderboardType == WIN_RATE_LEADERBOARD) {
-            return stats.totalGames > 0 ? (stats.wins * 10000) / stats.totalGames : 0;
+            return stats.totalGames > 0 ? (stats.wins * 10_000) / stats.totalGames : 0;
         } else if (leaderboardType == STREAK_LEADERBOARD) {
             return stats.bestWinStreak;
         } else if (leaderboardType == WEEKLY_LEADERBOARD) {

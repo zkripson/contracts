@@ -107,7 +107,12 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     function createGame(
         address player1,
         address player2
-    ) external onlyRole(BACKEND_ROLE) whenNotPaused returns (uint256 gameId) {
+    )
+        external
+        onlyRole(BACKEND_ROLE)
+        whenNotPaused
+        returns (uint256 gameId)
+    {
         require(player1 != player2, "Cannot play against yourself");
         require(player1 != address(0) && player2 != address(0), "Invalid player address");
 
@@ -115,12 +120,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
 
         // Generate initialization data for the proxy
         bytes memory initData = abi.encodeWithSelector(
-            BattleshipGameImplementation.initialize.selector,
-            gameId,
-            player1,
-            player2,
-            address(this),
-            backend
+            BattleshipGameImplementation.initialize.selector, gameId, player1, player2, address(this), backend
         );
 
         // Deploy new proxy contract
@@ -165,7 +165,10 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         uint256 duration,
         uint256 shots,
         string memory endReason
-    ) external onlyRole(BACKEND_ROLE) {
+    )
+        external
+        onlyRole(BACKEND_ROLE)
+    {
         address gameAddress = games[gameId];
         if (gameAddress == address(0)) revert GameNotFound();
 
@@ -191,32 +194,26 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         // Update comprehensive statistics in BattleshipStatistics contract
         if (winner == address(0)) {
             // Draw case
-            statistics.recordDraw(
-                player1, 
-                player2, 
-                duration,
-                shots,
-                endReason
-            );
+            statistics.recordDraw(player1, player2, duration, shots, endReason);
         } else {
             // Winner case - update both players
             statistics.recordGameResult(
-                player1, 
-                winner == player1, 
-                gameId, 
-                duration, 
-                shots / 2, // Approximate shots for each player 
-                endReason, 
+                player1,
+                winner == player1,
+                gameId,
+                duration,
+                shots / 2, // Approximate shots for each player
+                endReason,
                 player1Rewards
             );
-            
+
             statistics.recordGameResult(
-                player2, 
-                winner == player2, 
-                gameId, 
-                duration, 
+                player2,
+                winner == player2,
+                gameId,
+                duration,
                 shots / 2, // Approximate shots for each player
-                endReason, 
+                endReason,
                 player2Rewards
             );
         }
@@ -235,11 +232,11 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         BattleshipGameImplementation game = BattleshipGameImplementation(gameAddress);
         address player1 = game.player1();
         address player2 = game.player2();
-        
+
         game.cancelGame();
 
         gameStats.cancelledGames++;
-        
+
         // Update comprehensive statistics in BattleshipStatistics
         // Record as a draw with "cancelled" as the end reason
         statistics.recordDraw(
@@ -312,7 +309,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
             tempEntries[i] = LeaderboardEntry({
                 player: player,
                 wins: stats.wins,
-                winRate: stats.totalGames > 0 ? (stats.wins * 10000) / stats.totalGames : 0,
+                winRate: stats.totalGames > 0 ? (stats.wins * 10_000) / stats.totalGames : 0,
                 currentStreak: stats.winStreak,
                 bestStreak: stats.bestWinStreak
             });
@@ -387,7 +384,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         require(_shipToken != address(0), "Invalid token address");
         shipToken = SHIPToken(_shipToken);
     }
-    
+
     /**
      * @notice Set BattleshipStatistics address
      * @param _statistics Address of the statistics contract
@@ -471,11 +468,14 @@ contract GameFactoryWithStats is AccessControl, Pausable {
      * @return player2Reward Amount rewarded to player2
      */
     function _distributeRewards(
-        uint256 gameId, 
-        address player1, 
-        address player2, 
+        uint256 gameId,
+        address player1,
+        address player2,
         address winner
-    ) internal returns (uint256 player1Reward, uint256 player2Reward) {
+    )
+        internal
+        returns (uint256 player1Reward, uint256 player2Reward)
+    {
         // Both players get participation rewards
         uint256 participationReward = shipToken.participationReward();
         uint256 victoryBonus = shipToken.victoryBonus();
@@ -499,7 +499,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
             // Handle reward failure - could be cooldown or daily limit
             player2Reward = 0; // If minting fails, set reward to 0
         }
-        
+
         return (player1Reward, player2Reward);
     }
 

@@ -11,7 +11,6 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  * @dev Enhanced ERC20 token for ZK Battleship with batch operations and Base optimization
  */
 contract SHIPToken is ERC20, ERC20Burnable, Pausable, AccessControl {
-
     // ==================== Roles ====================
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -68,7 +67,7 @@ contract SHIPToken is ERC20, ERC20Burnable, Pausable, AccessControl {
             victoryBonus: 25 * 10 ** decimals(), // 25 SHIP
             rewardCooldown: 5 minutes,
             maxRewardsPerDay: 100 * 10 ** decimals() // 100 SHIP max per day
-        });
+         });
 
         // Mint initial supply if specified
         if (_initialSupply > 0) {
@@ -89,7 +88,12 @@ contract SHIPToken is ERC20, ERC20Burnable, Pausable, AccessControl {
         address player,
         bool isWinner,
         uint256 gameId
-    ) external onlyRole(DISTRIBUTOR_ROLE) whenNotPaused returns (bool success) {
+    )
+        external
+        onlyRole(DISTRIBUTOR_ROLE)
+        whenNotPaused
+        returns (bool success)
+    {
         return _mintReward(player, isWinner, gameId);
     }
 
@@ -100,9 +104,7 @@ contract SHIPToken is ERC20, ERC20Burnable, Pausable, AccessControl {
      * @return totalRewarded Total amount of tokens minted
      * @return successCount Number of players successfully rewarded
      */
-    function mintBatchRewards(
-        BatchReward[] memory rewards
-    )
+    function mintBatchRewards(BatchReward[] memory rewards)
         external
         onlyRole(DISTRIBUTOR_ROLE)
         whenNotPaused

@@ -141,7 +141,8 @@ interface IBackendBattleship {
         uint256 victoryBonus,
         uint256 cooldown,
         uint256 dailyLimit
-    ) external;
+    )
+        external;
 }
 
 /**
