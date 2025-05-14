@@ -38,11 +38,10 @@ contract GameFlowTest is Test {
         implementation = new BattleshipGameImplementation();
 
         // Deploy factory
-        factory = new GameFactoryWithStats(address(implementation), BACKEND, address(token));
+        factory = new GameFactoryWithStats(address(implementation), BACKEND, address(token), address(statistics));
 
         // Setup roles
         statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
-        factory.grantRole(factory.STATS_ROLE(), address(statistics));
 
         vm.stopPrank();
     }

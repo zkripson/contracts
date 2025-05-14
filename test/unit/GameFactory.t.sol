@@ -26,6 +26,7 @@ contract GameFactoryTest is Test {
     GameFactoryWithStats factory;
     BattleshipGameImplementation implementation;
     MockSHIPToken shipToken;
+    BattleshipStatistics statistics;
 
     // Test accounts
     address constant ADMIN = address(0x1);
@@ -41,10 +42,17 @@ contract GameFactoryTest is Test {
 
         // Deploy mock token
         shipToken = new MockSHIPToken();
+        
+        // Deploy statistics contract
+        statistics = new BattleshipStatistics(ADMIN);
 
         // Deploy the factory
-        vm.prank(ADMIN);
-        factory = new GameFactoryWithStats(address(implementation), BACKEND, address(shipToken));
+        vm.startPrank(ADMIN);
+        factory = new GameFactoryWithStats(address(implementation), BACKEND, address(shipToken), address(statistics));
+        
+        // Set up permissions
+        statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
+        vm.stopPrank();
     }
 
     // Test initialization
@@ -52,6 +60,7 @@ contract GameFactoryTest is Test {
         assertEq(factory.currentImplementation(), address(implementation));
         assertEq(factory.backend(), BACKEND);
         assertEq(address(factory.shipToken()), address(shipToken));
+        assertEq(address(factory.statistics()), address(statistics));
 
         // Check roles
         assertTrue(factory.hasRole(factory.DEFAULT_ADMIN_ROLE(), ADMIN));
@@ -282,6 +291,32 @@ contract GameFactoryTest is Test {
         vm.prank(ADMIN);
         vm.expectRevert();
         factory.setShipToken(address(0));
+    }
+    
+    // Test setting statistics
+    function testSetStatistics() public {
+        address newStats = address(0x8);
+
+        vm.prank(ADMIN);
+        factory.setStatistics(newStats);
+
+        assertEq(address(factory.statistics()), newStats);
+    }
+
+    // Test that only admin can set statistics
+    function test_RevertWhen_SetStatisticsNotAdmin() public {
+        address newStats = address(0x8);
+
+        vm.prank(RANDOM_USER);
+        vm.expectRevert();
+        factory.setStatistics(newStats);
+    }
+
+    // Test setting statistics to zero address
+    function test_RevertWhen_SetStatisticsZeroAddress() public {
+        vm.prank(ADMIN);
+        vm.expectRevert();
+        factory.setStatistics(address(0));
     }
 
     // Test pausing the factory

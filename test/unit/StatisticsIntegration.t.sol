@@ -27,7 +27,7 @@ contract StatisticsIntegrationTest is Test {
         // Deploy contracts
         implementation = new BattleshipGameImplementation();
         statistics = new BattleshipStatistics(admin);
-        shipToken = new SHIPToken(admin, 1_000_000 ether);
+        shipToken = new SHIPToken(admin, admin, 1_000_000 ether);
 
         factory = new GameFactoryWithStats(address(implementation), backend, address(shipToken), address(statistics));
 
@@ -68,16 +68,18 @@ contract StatisticsIntegrationTest is Test {
         (
             uint256 totalGames,
             uint256 wins,
-            uint256 losses,
-            , // draws
-            , // winRate
+            uint256 losses, // draws
+            // winRate
+            ,
+            ,
             uint256 currentWinStreak,
-            uint256 bestWinStreak,
-            , // avgDuration
-            uint256 totalRewards,
-            , // gamesThisWeek
-                // weeklyWinRate
-        ) = statistics.getPlayerStats(player1);
+            uint256 bestWinStreak, // avgDuration
+            ,
+            uint256 totalRewards, // gamesThisWeek
+            ,
+
+        ) = // weeklyWinRate
+            statistics.getPlayerStats(player1);
 
         // Check GameFactory statistics
         GameFactoryWithStats.PlayerStats memory factoryStats = factory.getPlayerStats(player1);
@@ -107,15 +109,19 @@ contract StatisticsIntegrationTest is Test {
         (
             totalGames,
             wins,
-            losses,
-            , // draws
-            , // winRate
+            losses, // draws
+            // winRate
+            ,
+            ,
             currentWinStreak,
-            bestWinStreak,
-            , // avgDuration
-            , // totalRewards
-            , // gamesThisWeek
-                // weeklyWinRate
+            bestWinStreak, // avgDuration
+            // totalRewards
+            // gamesThisWeek
+            // weeklyWinRate
+            ,
+            ,
+            ,
+
         ) = statistics.getPlayerStats(player1);
 
         assertEq(totalGames, 2, "Player1 should have 2 games total");
@@ -127,16 +133,22 @@ contract StatisticsIntegrationTest is Test {
         // Check player2 stats (should have a win)
         (
             totalGames,
-            wins,
-            , // losses
-            , // draws
-            , // winRate
-            currentWinStreak,
-            , // bestWinStreak
-            , // avgDuration
-            , // totalRewards
-            , // gamesThisWeek
-                // weeklyWinRate
+            wins, // losses
+            // draws
+            // winRate
+            ,
+            ,
+            ,
+            currentWinStreak, // bestWinStreak
+            // avgDuration
+            // totalRewards
+            // gamesThisWeek
+            // weeklyWinRate
+            ,
+            ,
+            ,
+            ,
+
         ) = statistics.getPlayerStats(player2);
 
         assertEq(totalGames, 2, "Player2 should have 2 games total");
@@ -164,15 +176,19 @@ contract StatisticsIntegrationTest is Test {
             uint256 totalGames,
             uint256 wins,
             uint256 losses,
-            uint256 draws,
-            , // winRate
-            uint256 currentWinStreak,
-            , // bestWinStreak
-            , // avgDuration
-            , // totalRewards
-            , // gamesThisWeek
-                // weeklyWinRate
-        ) = statistics.getPlayerStats(player1);
+            uint256 draws, // winRate
+            ,
+            uint256 currentWinStreak, // bestWinStreak
+            // avgDuration
+            // totalRewards
+            // gamesThisWeek
+            ,
+            ,
+            ,
+            ,
+
+        ) = // weeklyWinRate
+            statistics.getPlayerStats(player1);
 
         assertEq(totalGames, 1, "Player1 should have 1 game");
         assertEq(wins, 0, "Player1 should have 0 wins");
@@ -195,15 +211,21 @@ contract StatisticsIntegrationTest is Test {
             uint256 totalGames,
             uint256 wins,
             uint256 losses,
-            uint256 draws,
-            , // winRate
-            , // currentWinStreak
-            , // bestWinStreak
-            , // avgDuration
-            , // totalRewards
-            , // gamesThisWeek
-                // weeklyWinRate
-        ) = statistics.getPlayerStats(player1);
+            uint256 draws, // winRate
+            // currentWinStreak
+            // bestWinStreak
+            // avgDuration
+            // totalRewards
+            // gamesThisWeek
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+
+        ) = // weeklyWinRate
+            statistics.getPlayerStats(player1);
 
         assertEq(totalGames, 1, "Player1 should have 1 game");
         assertEq(wins, 0, "Player1 should have 0 wins");
