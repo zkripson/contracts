@@ -238,8 +238,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
             platformFee = 0;
         } else if (winner == invite.creator || winner == invite.acceptor) {
             // Valid winner - distribute funds
-            usdcToken.safeTransfer(winner, winnerPayout);
             usdcToken.safeTransfer(treasury, platformFee);
+            usdcToken.safeTransfer(winner, winnerPayout);
         } else {
             revert UnauthorizedAction();
         }
