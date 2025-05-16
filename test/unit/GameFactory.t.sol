@@ -42,14 +42,14 @@ contract GameFactoryTest is Test {
 
         // Deploy mock token
         shipToken = new MockSHIPToken();
-        
+
         // Deploy statistics contract
         statistics = new BattleshipStatistics(ADMIN);
 
         // Deploy the factory
         vm.startPrank(ADMIN);
         factory = new GameFactoryWithStats(address(implementation), BACKEND, address(shipToken), address(statistics));
-        
+
         // Set up permissions
         statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
         vm.stopPrank();
@@ -292,7 +292,7 @@ contract GameFactoryTest is Test {
         vm.expectRevert();
         factory.setShipToken(address(0));
     }
-    
+
     // Test setting statistics
     function testSetStatistics() public {
         address newStats = address(0x8);

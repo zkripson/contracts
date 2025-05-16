@@ -77,9 +77,8 @@ contract StatisticsIntegrationTest is Test {
             ,
             uint256 totalRewards, // gamesThisWeek
             ,
-
         ) = // weeklyWinRate
-            statistics.getPlayerStats(player1);
+         statistics.getPlayerStats(player1);
 
         // Check GameFactory statistics
         GameFactoryWithStats.PlayerStats memory factoryStats = factory.getPlayerStats(player1);
@@ -121,7 +120,6 @@ contract StatisticsIntegrationTest is Test {
             ,
             ,
             ,
-
         ) = statistics.getPlayerStats(player1);
 
         assertEq(totalGames, 2, "Player1 should have 2 games total");
@@ -148,7 +146,6 @@ contract StatisticsIntegrationTest is Test {
             ,
             ,
             ,
-
         ) = statistics.getPlayerStats(player2);
 
         assertEq(totalGames, 2, "Player2 should have 2 games total");
@@ -186,9 +183,8 @@ contract StatisticsIntegrationTest is Test {
             ,
             ,
             ,
-
         ) = // weeklyWinRate
-            statistics.getPlayerStats(player1);
+         statistics.getPlayerStats(player1);
 
         assertEq(totalGames, 1, "Player1 should have 1 game");
         assertEq(wins, 0, "Player1 should have 0 wins");
@@ -223,9 +219,8 @@ contract StatisticsIntegrationTest is Test {
             ,
             ,
             ,
-
         ) = // weeklyWinRate
-            statistics.getPlayerStats(player1);
+         statistics.getPlayerStats(player1);
 
         assertEq(totalGames, 1, "Player1 should have 1 game");
         assertEq(wins, 0, "Player1 should have 0 wins");

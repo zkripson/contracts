@@ -89,6 +89,7 @@ if [ -f "$DEPLOYMENT_OUTPUT" ]; then
         GAME_IMPLEMENTATION=$(jq -r '.contracts.BattleshipGameImplementation' "$DEPLOYMENT_OUTPUT")
         GAME_STATS=$(jq -r '.contracts.BattleshipStatistics' "$DEPLOYMENT_OUTPUT")
         GAME_FACTORY=$(jq -r '.contracts.GameFactoryWithStats' "$DEPLOYMENT_OUTPUT")
+        BETTING_ADDRESS=$(jq -r '.contracts.BattleshipBetting' "$DEPLOYMENT_OUTPUT")
         BACKEND_ADDRESS=$(jq -r '.config.backend' "$DEPLOYMENT_OUTPUT")
     else
         # Fallback to grep if jq is not available
@@ -97,6 +98,7 @@ if [ -f "$DEPLOYMENT_OUTPUT" ]; then
         GAME_IMPLEMENTATION=$(grep -o '"BattleshipGameImplementation": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
         GAME_STATS=$(grep -o '"BattleshipStatistics": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
         GAME_FACTORY=$(grep -o '"GameFactoryWithStats": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
+        BETTING_ADDRESS=$(grep -o '"BattleshipBetting": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
         BACKEND_ADDRESS=$(grep -o '"backend": "[^"]*' "$DEPLOYMENT_OUTPUT" | cut -d'"' -f4)
     fi
 else
@@ -114,6 +116,7 @@ else
         GAME_IMPLEMENTATION=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "BattleshipGameImplementation" | head -n 1 | cut -d'"' -f4)
         GAME_STATS=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "BattleshipStatistics" | head -n 1 | cut -d'"' -f4)
         GAME_FACTORY=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "GameFactoryWithStats" | head -n 1 | cut -d'"' -f4)
+        BETTING_ADDRESS=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "BattleshipBetting" | head -n 1 | cut -d'"' -f4)
         
         # Try to extract backend address from environment
         BACKEND_ADDRESS=${BACKEND_ADDRESS:-$DEPLOYER}
@@ -124,6 +127,8 @@ else
         exit 1
     fi
 fi
+
+# BattleshipBetting address is now extracted from the main deployment output
 
 # Update .env file with deployed addresses
 if [ ! -z "$SHIP_TOKEN" ] && [ ! -z "$GAME_IMPLEMENTATION" ] && [ ! -z "$GAME_FACTORY" ]; then
@@ -137,6 +142,11 @@ if [ ! -z "$SHIP_TOKEN" ] && [ ! -z "$GAME_IMPLEMENTATION" ] && [ ! -z "$GAME_FA
     sed -i "s/GAME_IMPLEMENTATION_ADDRESS=.*/GAME_IMPLEMENTATION_ADDRESS=$GAME_IMPLEMENTATION/" .env
     sed -i "s/STATS_ADDRESS=.*/STATS_ADDRESS=$GAME_STATS/" .env
     sed -i "s/GAME_FACTORY_ADDRESS=.*/GAME_FACTORY_ADDRESS=$GAME_FACTORY/" .env
+    
+    # Update betting address if it exists
+    if [ ! -z "$BETTING_ADDRESS" ]; then
+        sed -i "s/BETTING_ADDRESS=.*/BETTING_ADDRESS=$BETTING_ADDRESS/" .env
+    fi
     
     echo -e "${GREEN}Environment variables updated in .env file${NC}"
 fi
@@ -158,10 +168,14 @@ cat > temp_config.json << EOF
         "shipToken": "$SHIP_TOKEN",
         "gameImplementation": "$GAME_IMPLEMENTATION",
         "gameStatistics": "$GAME_STATS",
-        "gameFactory": "$GAME_FACTORY"
+        "gameFactory": "$GAME_FACTORY"${BETTING_ADDRESS:+,
+        "battleshipBetting": "$BETTING_ADDRESS"}
       },
       "config": {
-        "backend": "$BACKEND_ADDRESS"
+        "backend": "$BACKEND_ADDRESS"${USDC_ADDRESS:+,
+        "usdcToken": "$USDC_ADDRESS"}${TREASURY_ADDRESS:+,
+        "treasury": "$TREASURY_ADDRESS"}${ADMIN_ADDRESS:+,
+        "admin": "$ADMIN_ADDRESS"}
       },
       "deploymentDate": "$CURRENT_DATE"
     }
@@ -182,11 +196,24 @@ echo -e "${GREEN}SHIPToken:${NC} $SHIP_TOKEN"
 echo -e "${GREEN}GameImplementation:${NC} $GAME_IMPLEMENTATION"
 echo -e "${GREEN}BattleshipStatistics:${NC} $GAME_STATS"
 echo -e "${GREEN}GameFactory:${NC} $GAME_FACTORY"
+if [ ! -z "$BETTING_ADDRESS" ] && [ "$BETTING_ADDRESS" != "null" ]; then
+    echo -e "${GREEN}BattleshipBetting:${NC} $BETTING_ADDRESS"
+fi
 echo -e "${GREEN}Backend Address:${NC} $BACKEND_ADDRESS"
+if [ ! -z "$TREASURY_ADDRESS" ]; then
+    echo -e "${GREEN}Treasury Address:${NC} $TREASURY_ADDRESS"
+fi
+if [ ! -z "$USDC_ADDRESS" ]; then
+    echo -e "${GREEN}USDC Token:${NC} $USDC_ADDRESS"
+fi
 echo -e "${BLUE}===============================================${NC}"
 echo -e "${GREEN}Deployment completed successfully!${NC}"
 echo -e "Next steps:"
 echo -e "1. Configure your backend to use these contract addresses"
 echo -e "2. Run tests against Base Sepolia testnet"
 echo -e "3. Monitor transactions on Base Sepolia explorer: https://sepolia.basescan.org"
+if [ ! -z "$BETTING_ADDRESS" ] && [ "$BETTING_ADDRESS" != "null" ]; then
+    echo -e "4. Ensure backend has proper roles for betting operations"
+    echo -e "5. Verify USDC token address and treasury are configured correctly"
+fi
 echo -e "${BLUE}===============================================${NC}"

@@ -28,6 +28,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         Resolved, // Game completed, funds distributed
         Cancelled, // Invite cancelled, funds returned
         Expired // Invite expired, funds returned
+
     }
 
     enum GameStatus {
@@ -37,6 +38,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         ACTIVE, // Both players submitted boards, game in progress
         COMPLETED, // Game finished with winner/tie
         CANCELLED // Game cancelled before starting
+
     }
 
     struct BettingInvite {
@@ -316,9 +318,11 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @return totalPool Total betting pool
      * @return resolved Whether betting is resolved
      */
-    function getGameBettingInfo(
-        uint256 gameId
-    ) external view returns (uint256 inviteId, uint256 totalPool, bool resolved) {
+    function getGameBettingInfo(uint256 gameId)
+        external
+        view
+        returns (uint256 inviteId, uint256 totalPool, bool resolved)
+    {
         inviteId = gameIdToBettingInvite[gameId];
         if (inviteId > 0) {
             BettingInvite memory invite = bettingInvites[inviteId];

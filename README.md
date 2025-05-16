@@ -74,14 +74,23 @@ Manages game creation and serves as the entry point for players:
 - Manages player-to-game mappings
 - Controls implementation upgrades
 
-### 4. ZKVerifier.sol
+### 4. BattleshipBetting.sol (Optional)
+
+Adds financial incentives to gameplay:
+- USDC-based betting with escrow mechanism
+- Time-limited betting invites (24 hours)
+- Platform fee collection (10% of winnings)
+- Draw handling with full refunds
+- Admin controls for emergency situations
+
+### 5. ZKVerifier.sol
 
 Validates zero-knowledge proofs for game actions:
 - Verifies board placement proofs
 - Validates shot result proofs
 - Confirms game ending proofs
 
-### 5. GameStorage.sol
+### 6. GameStorage.sol
 
 Optimizes storage and retrieval of game state:
 - Uses bit-packed board representation
@@ -137,6 +146,31 @@ The GameStorage library provides optimized on-chain storage:
    - When all ships of a player are sunk
    - Player calls `verifyGameEnd(commitment, proof)`
    - Players can claim rewards via `claimReward()`
+
+## Betting Flow (Optional)
+
+When BattleshipBetting is deployed, players can wager on games:
+
+1. **Create Betting Invite**:
+   - Player calls `BattleshipBetting.createInvite(stakeAmount)`
+   - USDC stake is escrowed in the contract
+   - Invite expires after 24 hours if not accepted
+
+2. **Accept Betting Invite**:
+   - Opponent calls `acceptInvite(inviteId)`
+   - Matching USDC stake is escrowed
+   - Bet is now matched and ready for game creation
+
+3. **Game Creation**:
+   - Backend calls `createGame(inviteId)`
+   - Game is created through GameFactory
+   - Players proceed with normal gameplay
+
+4. **Resolve Betting**:
+   - Backend calls `resolveGame(gameId, winner)`
+   - Winner receives 90% of pool (180% of their stake)
+   - Platform collects 10% fee
+   - Draws return full stakes to both players
 
 
 ## Prerequisites
@@ -233,16 +267,37 @@ forge build --optimize --via-ir
 
 ### Deploying
 
-To deploy the project:
+#### Basic Deployment (without betting)
+
+To deploy the core contracts:
 
 ```bash
 ./scripts/deploy.sh
 ```
 
-This script will:
-1. Build the contracts
-2. Deploy the contracts to Base Sepolia testnet
-3. Verify the contracts on the Base Sepolia explorer
+#### Full Deployment (with betting)
+
+To deploy all contracts including the betting system:
+
+```bash
+# First, set these in your .env file
+USDC_ADDRESS=0x... # USDC token address on Base Sepolia
+TREASURY_ADDRESS=0x... # Treasury address for platform fees
+ADMIN_ADDRESS=0x... # Admin address for contract management
+BACKEND_ADDRESS=0x... # Backend service address
+
+# Run deployment
+./scripts/deploy.sh
+```
+
+The deployment script will:
+1. Build all contracts with optimization
+2. Deploy core contracts (SHIPToken, GameFactory, Statistics, Implementation)
+3. Deploy BattleshipBetting contract if USDC_ADDRESS and TREASURY_ADDRESS are set
+4. Configure all necessary permissions and roles
+5. Update your .env file with deployed addresses
+6. Generate deployment-config.json with all contract addresses
+7. Verify contracts on Base Sepolia explorer (if API key is provided)
 
 
 6. Run tests:
