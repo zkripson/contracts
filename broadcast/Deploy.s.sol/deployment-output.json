@@ -1,13 +1,13 @@
 {
   "network": "84532",
   "network_name": "Base Sepolia Testnet",
-  "timestamp": "1747399350",
+  "timestamp": "1747562858",
   "contracts": {
-    "SHIPToken": "0xe50D262e709A28633b647D9F9cC49dBD3E72E399",
-    "BattleshipGameImplementation": "0x855b752cdFD194Ea696044C0b38E82D7984E0822",
-    "BattleshipStatistics": "0x6a3533c0AA1b2F10750a52Ad3Dbafc5Feb83F1A9",
-    "GameFactoryWithStats": "0x58690125194c12CeEEd78F117DfF38D2927dc7b3",
-    "BattleshipBetting": "0x69d5f714bf656c88ccd3137b78f6e452e511cee0"
+    "SHIPToken": "0x28e03DCEf5921e9Bc7E193998785388c2516f218",
+    "BattleshipGameImplementation": "0x0A10EA868f9E44b38205E05acf4b4503b84ab80D",
+    "BattleshipStatistics": "0x91F60455B38435E61A60C9d2a20defbA2e40A8B0",
+    "GameFactoryWithStats": "0x17cb99f4653D4dEbCeA637D10De27eA563411c2C",
+    "BattleshipBetting": "0x82C50C64FD8CCC1d38dC19d8ab1074169a52F95B"
   },
   "config": {
     "backend": "0x459D7FB72ac3dFB0666227B30F25A424A5583E9c"
