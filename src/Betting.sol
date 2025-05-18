@@ -157,7 +157,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         // Validate invite exists and is open
         if (invite.creator == address(0)) revert InviteNotFound();
         if (invite.betStatus != BetStatus.Open) revert InvalidInviteStatus();
-        if (msg.sender == invite.creator) revert SamePlayerNotAllowed();
+        if (acceptor == invite.creator) revert SamePlayerNotAllowed();
         if (block.timestamp > invite.timeout) {
             // Mark as expired
             invite.betStatus = BetStatus.Expired;
@@ -254,12 +254,12 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @notice Cancel an open invite and return stake to creator
      * @param inviteId ID of the invite to cancel
      */
-    function cancelInvite(uint256 inviteId) external whenNotPaused nonReentrant {
+    function cancelInvite(uint256 inviteId, address creator) external whenNotPaused nonReentrant {
         BettingInvite storage invite = bettingInvites[inviteId];
 
         // Validate invite
         if (invite.creator == address(0)) revert InviteNotFound();
-        if (msg.sender != invite.creator) revert UnauthorizedAction();
+        if (creator != invite.creator) revert UnauthorizedAction();
         if (invite.betStatus != BetStatus.Open) revert InvalidInviteStatus();
 
         // Update status

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.29;
 
-import { Test, console2 } from "forge-std/Test.sol";
-import { BattleshipBetting } from "../../src/Betting.sol";
-import { GameFactoryWithStats } from "../../src/factories/GameFactory.sol";
-import { BattleshipGameImplementation } from "../../src/BattleshipGameImplementation.sol";
-import { BattleshipStatistics } from "../../src/BattleshipStatistics.sol";
-import { SHIPToken } from "../../src/ShipToken.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Test, console2} from "forge-std/Test.sol";
+import {BattleshipBetting} from "../../src/Betting.sol";
+import {GameFactoryWithStats} from "../../src/factories/GameFactory.sol";
+import {BattleshipGameImplementation} from "../../src/BattleshipGameImplementation.sol";
+import {BattleshipStatistics} from "../../src/BattleshipStatistics.sol";
+import {SHIPToken} from "../../src/ShipToken.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Mock USDC token for testing
 contract MockUSDC is ERC20 {
-    constructor() ERC20("USD Coin", "USDC") { }
+    constructor() ERC20("USD Coin", "USDC") {}
 
     function decimals() public pure override returns (uint8) {
         return 6;
@@ -414,7 +414,7 @@ contract BattleshipBettingTest is Test {
         vm.prank(PLAYER1);
         vm.expectEmit(true, true, false, true);
         emit InviteCancelled(inviteId, PLAYER1, STANDARD_STAKE);
-        betting.cancelInvite(inviteId);
+        betting.cancelInvite(inviteId, PLAYER1);
 
         // Check invite status
         BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
@@ -431,7 +431,7 @@ contract BattleshipBettingTest is Test {
 
         vm.prank(PLAYER2);
         vm.expectRevert(BattleshipBetting.UnauthorizedAction.selector);
-        betting.cancelInvite(inviteId);
+        betting.cancelInvite(inviteId, PLAYER2);
     }
 
     function test_RevertWhen_CancelMatchedInvite() public {
@@ -443,7 +443,7 @@ contract BattleshipBettingTest is Test {
 
         vm.prank(PLAYER1);
         vm.expectRevert(BattleshipBetting.InvalidInviteStatus.selector);
-        betting.cancelInvite(inviteId);
+        betting.cancelInvite(inviteId, PLAYER1);
     }
 
     // ==================== Handle Expired Invite Tests ====================
@@ -503,7 +503,7 @@ contract BattleshipBettingTest is Test {
         vm.prank(BACKEND);
         betting.resolveGame(gameId, PLAYER1);
 
-        (,, bool resolvedAfter) = betting.getGameBettingInfo(gameId);
+        (, , bool resolvedAfter) = betting.getGameBettingInfo(gameId);
         assertTrue(resolvedAfter);
     }
 
