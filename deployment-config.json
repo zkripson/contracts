@@ -1,0 +1,23 @@
+{
+  "environments": {
+    "base-sepolia": {
+      "network": "Base Sepolia Testnet",
+      "rpc": "https://sepolia.base.org",
+      "ws": "",
+      "explorer": "https://sepolia.basescan.org",
+      "contracts": {
+        "shipToken": "",
+        "gameImplementation": "",
+        "gameStatistics": "",
+        "gameFactory": ""
+      },
+      "config": {
+        "backend": "",
+        usdcToken: 0x036CbD53842c5426634e7929541eC2318f3dCF7e,
+        treasury: 0x459D7FB72ac3dFB0666227B30F25A424A5583E9c,
+        admin: 0x459D7FB72ac3dFB0666227B30F25A424A5583E9c
+      },
+      "deploymentDate": "2025-05-16T12:44:19Z"
+    }
+  }
+}

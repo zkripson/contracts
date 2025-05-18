@@ -28,7 +28,6 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         Resolved, // Game completed, funds distributed
         Cancelled, // Invite cancelled, funds returned
         Expired // Invite expired, funds returned
-
     }
 
     enum GameStatus {
@@ -38,7 +37,6 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         ACTIVE, // Both players submitted boards, game in progress
         COMPLETED, // Game finished with winner/tie
         CANCELLED // Game cancelled before starting
-
     }
 
     struct BettingInvite {
@@ -113,14 +111,17 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @param stakeAmount Amount in USDC to stake (with 6 decimals)
      * @return inviteId Unique identifier for the invite
      */
-    function createInvite(uint256 stakeAmount) external whenNotPaused nonReentrant returns (uint256 inviteId) {
+    function createInvite(
+        uint256 stakeAmount,
+        address creator
+    ) external whenNotPaused nonReentrant returns (uint256 inviteId) {
         // Validate stake amount
         if (stakeAmount < MIN_STAKE_AMOUNT) {
             revert InvalidStakeAmount();
         }
 
         // Check user has sufficient balance
-        if (usdcToken.balanceOf(msg.sender) < stakeAmount) {
+        if (usdcToken.balanceOf(creator) < stakeAmount) {
             revert InsufficientBalance();
         }
 
@@ -129,7 +130,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         // Create the invite
         BettingInvite storage invite = bettingInvites[inviteId];
         invite.id = inviteId;
-        invite.creator = msg.sender;
+        invite.creator = creator;
         invite.stakeAmount = stakeAmount;
         invite.createdAt = block.timestamp;
         invite.timeout = block.timestamp + INVITE_TIMEOUT;
@@ -137,12 +138,12 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         invite.gameStatus = GameStatus.CREATED; // Starts with first player
 
         // Track invite for player
-        playerInvites[msg.sender].push(inviteId);
+        playerInvites[creator].push(inviteId);
 
         // Escrow creator's stake
-        usdcToken.safeTransferFrom(msg.sender, address(this), stakeAmount);
+        usdcToken.safeTransferFrom(creator, address(this), stakeAmount);
 
-        emit InviteCreated(inviteId, msg.sender, stakeAmount);
+        emit InviteCreated(inviteId, creator, stakeAmount);
         return inviteId;
     }
 
@@ -150,7 +151,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @notice Accept a betting invite by matching the stake
      * @param inviteId ID of the invite to accept
      */
-    function acceptInvite(uint256 inviteId) external whenNotPaused nonReentrant {
+    function acceptInvite(uint256 inviteId, address acceptor) external whenNotPaused nonReentrant {
         BettingInvite storage invite = bettingInvites[inviteId];
 
         // Validate invite exists and is open
@@ -164,21 +165,21 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         }
 
         // Check acceptor has sufficient balance
-        if (usdcToken.balanceOf(msg.sender) < invite.stakeAmount) {
+        if (usdcToken.balanceOf(acceptor) < invite.stakeAmount) {
             revert InsufficientBalance();
         }
 
         // Update invite
-        invite.acceptor = msg.sender;
+        invite.acceptor = acceptor;
         invite.betStatus = BetStatus.Matched;
 
         // Track invite for acceptor
-        playerInvites[msg.sender].push(inviteId);
+        playerInvites[acceptor].push(inviteId);
 
         // Escrow acceptor's stake
-        usdcToken.safeTransferFrom(msg.sender, address(this), invite.stakeAmount);
+        usdcToken.safeTransferFrom(acceptor, address(this), invite.stakeAmount);
 
-        emit InviteAccepted(inviteId, msg.sender);
+        emit InviteAccepted(inviteId, acceptor);
     }
 
     /**
@@ -318,11 +319,9 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @return totalPool Total betting pool
      * @return resolved Whether betting is resolved
      */
-    function getGameBettingInfo(uint256 gameId)
-        external
-        view
-        returns (uint256 inviteId, uint256 totalPool, bool resolved)
-    {
+    function getGameBettingInfo(
+        uint256 gameId
+    ) external view returns (uint256 inviteId, uint256 totalPool, bool resolved) {
         inviteId = gameIdToBettingInvite[gameId];
         if (inviteId > 0) {
             BettingInvite memory invite = bettingInvites[inviteId];
