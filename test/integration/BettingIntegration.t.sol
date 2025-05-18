@@ -101,7 +101,7 @@ contract BettingIntegrationTest is Test {
 
         // Step 1: Player 1 creates a betting invite
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Verify invite was created
         BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
@@ -110,7 +110,7 @@ contract BettingIntegrationTest is Test {
 
         // Step 2: Player 2 accepts the invite
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         // Verify funds are escrowed
         assertEq(usdc.balanceOf(address(betting)), STANDARD_STAKE * 2);
@@ -171,10 +171,10 @@ contract BettingIntegrationTest is Test {
     function testDrawScenarioWithBetting() public {
         // Create and match bet
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         // Create game
         vm.prank(BACKEND);
@@ -197,7 +197,7 @@ contract BettingIntegrationTest is Test {
     function testCancellationFlow() public {
         // Create invite
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         uint256 balanceBefore = usdc.balanceOf(PLAYER1);
 
@@ -219,7 +219,7 @@ contract BettingIntegrationTest is Test {
     function testExpiredInviteHandling() public {
         // Create invite
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Time travel past expiration
         vm.warp(block.timestamp + betting.INVITE_TIMEOUT() + 1);
@@ -242,10 +242,10 @@ contract BettingIntegrationTest is Test {
     function testGetGameBettingInfo() public {
         // Setup game with betting
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
         uint256 gameId = betting.createGame(inviteId);

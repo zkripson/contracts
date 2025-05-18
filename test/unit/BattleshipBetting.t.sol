@@ -111,7 +111,7 @@ contract BattleshipBettingTest is Test {
         vm.prank(PLAYER1);
         vm.expectEmit(true, true, false, true);
         emit InviteCreated(1, PLAYER1, STANDARD_STAKE);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Check invite details
         assertEq(inviteId, 1);
@@ -135,7 +135,7 @@ contract BattleshipBettingTest is Test {
     function test_RevertWhen_CreateInviteStakeTooLow() public {
         vm.prank(PLAYER1);
         vm.expectRevert(BattleshipBetting.InvalidStakeAmount.selector);
-        betting.createInvite(MIN_STAKE - 1);
+        betting.createInvite(MIN_STAKE - 1, PLAYER1);
     }
 
     function test_RevertWhen_CreateInviteInsufficientBalance() public {
@@ -148,7 +148,7 @@ contract BattleshipBettingTest is Test {
 
         vm.prank(PLAYER1);
         vm.expectRevert(BattleshipBetting.InsufficientBalance.selector);
-        betting.createInvite(STANDARD_STAKE);
+        betting.createInvite(STANDARD_STAKE, PLAYER1);
     }
 
     function testCreateInviteWhenPaused() public {
@@ -158,7 +158,7 @@ contract BattleshipBettingTest is Test {
 
         vm.prank(PLAYER1);
         vm.expectRevert(); // Generic revert when paused
-        betting.createInvite(STANDARD_STAKE);
+        betting.createInvite(STANDARD_STAKE, PLAYER1);
     }
 
     // ==================== Accept Invite Tests ====================
@@ -166,7 +166,7 @@ contract BattleshipBettingTest is Test {
     function testAcceptInvite() public {
         // First create an invite
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         uint256 initialP2Balance = usdc.balanceOf(PLAYER2);
 
@@ -174,7 +174,7 @@ contract BattleshipBettingTest is Test {
         vm.prank(PLAYER2);
         vm.expectEmit(true, true, false, false);
         emit InviteAccepted(inviteId, PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         // Check invite status
         BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
@@ -194,45 +194,45 @@ contract BattleshipBettingTest is Test {
     function test_RevertWhen_AcceptNonExistentInvite() public {
         vm.prank(PLAYER2);
         vm.expectRevert(BattleshipBetting.InviteNotFound.selector);
-        betting.acceptInvite(999);
+        betting.acceptInvite(999, PLAYER2);
     }
 
     function test_RevertWhen_AcceptOwnInvite() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER1);
         vm.expectRevert(BattleshipBetting.SamePlayerNotAllowed.selector);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER1);
     }
 
     function test_RevertWhen_AcceptAlreadyMatchedInvite() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(PLAYER3);
         vm.expectRevert(BattleshipBetting.InvalidInviteStatus.selector);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER3);
     }
 
     function test_RevertWhen_AcceptExpiredInvite() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Time travel past timeout
         vm.warp(block.timestamp + betting.INVITE_TIMEOUT() + 1);
 
         vm.prank(PLAYER2);
         vm.expectRevert(BattleshipBetting.NotExpired.selector);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
     }
 
     function test_RevertWhen_AcceptWithInsufficientBalance() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Drain player2's balance (also revoke approval to avoid ERC20 error)
         vm.startPrank(PLAYER2);
@@ -243,7 +243,7 @@ contract BattleshipBettingTest is Test {
 
         vm.prank(PLAYER2);
         vm.expectRevert(BattleshipBetting.InsufficientBalance.selector);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
     }
 
     // ==================== Create Game Tests ====================
@@ -251,10 +251,10 @@ contract BattleshipBettingTest is Test {
     function testCreateGame() public {
         // Create and accept invite
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         // Create game
         vm.prank(BACKEND);
@@ -276,10 +276,10 @@ contract BattleshipBettingTest is Test {
 
     function test_RevertWhen_CreateGameNotBackend() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(RANDOM_USER);
         vm.expectRevert();
@@ -288,7 +288,7 @@ contract BattleshipBettingTest is Test {
 
     function test_RevertWhen_CreateGameNotMatched() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(BACKEND);
         vm.expectRevert(BattleshipBetting.InvalidInviteStatus.selector);
@@ -300,10 +300,10 @@ contract BattleshipBettingTest is Test {
     function testResolveGameWithWinner() public {
         // Setup: Create invite, accept, and create game
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
         uint256 gameId = betting.createGame(inviteId);
@@ -336,10 +336,10 @@ contract BattleshipBettingTest is Test {
     function testResolveGameAsDraw() public {
         // Setup: Create invite, accept, and create game
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
         uint256 gameId = betting.createGame(inviteId);
@@ -362,10 +362,10 @@ contract BattleshipBettingTest is Test {
     function test_RevertWhen_ResolveInvalidWinner() public {
         // Setup
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
         uint256 gameId = betting.createGame(inviteId);
@@ -379,10 +379,10 @@ contract BattleshipBettingTest is Test {
     function test_RevertWhen_ResolveAlreadyResolved() public {
         // Setup
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
         uint256 gameId = betting.createGame(inviteId);
@@ -407,7 +407,7 @@ contract BattleshipBettingTest is Test {
 
     function testCancelInvite() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         uint256 balanceBefore = usdc.balanceOf(PLAYER1);
 
@@ -427,7 +427,7 @@ contract BattleshipBettingTest is Test {
 
     function test_RevertWhen_CancelInviteNotCreator() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
         vm.expectRevert(BattleshipBetting.UnauthorizedAction.selector);
@@ -436,10 +436,10 @@ contract BattleshipBettingTest is Test {
 
     function test_RevertWhen_CancelMatchedInvite() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(PLAYER1);
         vm.expectRevert(BattleshipBetting.InvalidInviteStatus.selector);
@@ -450,7 +450,7 @@ contract BattleshipBettingTest is Test {
 
     function testHandleExpiredInvite() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Time travel past timeout
         vm.warp(block.timestamp + betting.INVITE_TIMEOUT() + 1);
@@ -474,7 +474,7 @@ contract BattleshipBettingTest is Test {
 
     function test_RevertWhen_HandleExpiredNotExpired() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(RANDOM_USER);
         vm.expectRevert(BattleshipBetting.NotExpired.selector);
@@ -485,10 +485,10 @@ contract BattleshipBettingTest is Test {
 
     function testGetGameBettingInfo() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
         uint256 gameId = betting.createGame(inviteId);
@@ -509,7 +509,7 @@ contract BattleshipBettingTest is Test {
 
     function testIsInviteExpired() public {
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         assertFalse(betting.isInviteExpired(inviteId));
 
@@ -575,11 +575,11 @@ contract BattleshipBettingTest is Test {
     function testFullGameFlow() public {
         // Create invite
         vm.prank(PLAYER1);
-        uint256 inviteId = betting.createInvite(STANDARD_STAKE);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Accept invite
         vm.prank(PLAYER2);
-        betting.acceptInvite(inviteId);
+        betting.acceptInvite(inviteId, PLAYER2);
 
         // Create game
         vm.prank(BACKEND);
@@ -599,8 +599,8 @@ contract BattleshipBettingTest is Test {
     function testMultipleInvitesFromSamePlayer() public {
         // Player can create multiple invites
         vm.startPrank(PLAYER1);
-        uint256 invite1 = betting.createInvite(STANDARD_STAKE);
-        uint256 invite2 = betting.createInvite(STANDARD_STAKE * 2);
+        uint256 invite1 = betting.createInvite(STANDARD_STAKE, PLAYER1);
+        uint256 invite2 = betting.createInvite(STANDARD_STAKE * 2, PLAYER1);
         vm.stopPrank();
 
         uint256[] memory invites = betting.getPlayerInvites(PLAYER1);
