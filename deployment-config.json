@@ -6,18 +6,19 @@
       "ws": "",
       "explorer": "https://sepolia.basescan.org",
       "contracts": {
-        "shipToken": "",
-        "gameImplementation": "",
-        "gameStatistics": "",
-        "gameFactory": ""
+        "shipToken": "0xbb1eb5C39ABA4f109B9CBCA8A92294C68d58E3FE",
+        "gameImplementation": "0x04289a9BB4E6981929abE6318Df2Ff613DD87157",
+        "gameStatistics": "0xF8B8EbF289C0755Bc99255e7b47e15DB192eb2a6",
+        "gameFactory": "0x1cc87523917B0Bb0C21D61f3C3b5ab9b1BeD3D50",
+        battleshipBetting: 0x4734533bdF7908f6a786086ab65D3CC43095D82c
       },
       "config": {
-        "backend": "",
+        "backend": "0x459D7FB72ac3dFB0666227B30F25A424A5583E9c",
         usdcToken: 0x036CbD53842c5426634e7929541eC2318f3dCF7e,
         treasury: 0x459D7FB72ac3dFB0666227B30F25A424A5583E9c,
         admin: 0x459D7FB72ac3dFB0666227B30F25A424A5583E9c
       },
-      "deploymentDate": "2025-05-18T10:09:08Z"
+      "deploymentDate": "2025-05-18T16:02:30Z"
     }
   }
 }

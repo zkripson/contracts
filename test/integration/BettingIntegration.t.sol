@@ -7,6 +7,7 @@ import {GameFactoryWithStats} from "../../src/factories/GameFactory.sol";
 import {BattleshipGameImplementation} from "../../src/BattleshipGameImplementation.sol";
 import {BattleshipStatistics} from "../../src/BattleshipStatistics.sol";
 import {SHIPToken} from "../../src/ShipToken.sol";
+import {BattleshipPoints} from "../../src/BattleshipPoints.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -35,6 +36,7 @@ contract BettingIntegrationTest is Test {
     BattleshipGameImplementation implementation;
     BattleshipStatistics statistics;
     SHIPToken shipToken;
+    BattleshipPoints pointsContract;
     MockUSDC usdc;
 
     // Test accounts
@@ -56,15 +58,25 @@ contract BettingIntegrationTest is Test {
         // 2. Deploy statistics contract
         statistics = new BattleshipStatistics(ADMIN);
 
-        // 3. Deploy implementation
+        // 3. Deploy points contract
+        pointsContract = new BattleshipPoints();
+
+        // 4. Deploy implementation
         implementation = new BattleshipGameImplementation();
 
-        // 4. Deploy factory
+        // 5. Deploy factory
         vm.startPrank(ADMIN);
-        factory = new GameFactoryWithStats(address(implementation), BACKEND, address(shipToken), address(statistics));
+        factory = new GameFactoryWithStats(
+            address(implementation), 
+            BACKEND, 
+            address(shipToken), 
+            address(statistics),
+            address(pointsContract)
+        );
 
-        // 5. Grant permissions
+        // 6. Grant permissions
         statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
+        pointsContract.addAuthorizedSource(address(factory));
         vm.stopPrank();
 
         // 6. Deploy USDC mock

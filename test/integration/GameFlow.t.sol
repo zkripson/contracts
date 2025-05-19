@@ -6,6 +6,7 @@ import { BattleshipGameImplementation } from "../../src/BattleshipGameImplementa
 import { GameFactoryWithStats } from "../../src/factories/GameFactory.sol";
 import { SHIPToken } from "../../src/ShipToken.sol";
 import { BattleshipStatistics } from "../../src/BattleshipStatistics.sol";
+import { BattleshipPoints } from "../../src/BattleshipPoints.sol";
 
 contract GameFlowTest is Test {
     // Contracts
@@ -13,6 +14,7 @@ contract GameFlowTest is Test {
     GameFactoryWithStats factory;
     SHIPToken token;
     BattleshipStatistics statistics;
+    BattleshipPoints pointsContract;
 
     // Test accounts
     address constant ADMIN = address(0x1);
@@ -34,14 +36,26 @@ contract GameFlowTest is Test {
         // Deploy statistics
         statistics = new BattleshipStatistics(ADMIN);
 
+        // Deploy points contract
+        pointsContract = new BattleshipPoints();
+
         // Deploy implementation
         implementation = new BattleshipGameImplementation();
 
-        // Deploy factory
-        factory = new GameFactoryWithStats(address(implementation), BACKEND, address(token), address(statistics));
+        // Deploy factory with points contract
+        factory = new GameFactoryWithStats(
+            address(implementation), 
+            BACKEND, 
+            address(token), 
+            address(statistics),
+            address(pointsContract)
+        );
 
         // Setup roles
         statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
+        
+        // Authorize factory to award points
+        pointsContract.addAuthorizedSource(address(factory));
 
         vm.stopPrank();
     }
@@ -83,6 +97,26 @@ contract GameFlowTest is Test {
 
         // Verify the game duration
         assertEq(game.getGameDuration(), 300);
+        
+        // 4. Report game completion to factory to award points
+        vm.prank(BACKEND);
+        factory.reportGameCompletion(
+            gameId,
+            PLAYER1, // winner
+            300, // duration
+            20, // shots
+            "completed"
+        );
+        
+        // 5. Verify points were awarded
+        uint256 player1Points = pointsContract.getTotalPoints(PLAYER1);
+        uint256 player2Points = pointsContract.getTotalPoints(PLAYER2);
+        
+        // Winner gets participation + victory points
+        assertEq(player1Points, factory.PARTICIPATION_POINTS() + factory.VICTORY_POINTS());
+        
+        // Loser gets only participation points
+        assertEq(player2Points, factory.PARTICIPATION_POINTS());
     }
 
     // Test game cancellation flow
@@ -101,7 +135,11 @@ contract GameFlowTest is Test {
         // Verify game state
         assertEq(uint256(game.state()), uint256(BattleshipGameImplementation.GameState.Cancelled));
 
-        // 4. Ensure no rewards distributed
+        // 4. Ensure no points were awarded
+        assertEq(pointsContract.getTotalPoints(PLAYER1), 0);
+        assertEq(pointsContract.getTotalPoints(PLAYER2), 0);
+        
+        // Still verify no tokens were minted
         assertEq(token.balanceOf(PLAYER1), 0);
         assertEq(token.balanceOf(PLAYER2), 0);
     }

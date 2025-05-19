@@ -7,6 +7,7 @@ import "../proxies/BattleShipGameProxy.sol";
 import "../BattleshipGameImplementation.sol";
 import "../ShipToken.sol";
 import "../BattleshipStatistics.sol";
+import "../BattleshipPoints.sol";
 
 /**
  * @title GameFactoryWithStats
@@ -60,12 +61,18 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     address public backend;
     SHIPToken public shipToken;
     BattleshipStatistics public statistics;
+    BattleshipPoints public pointsContract;
 
     GameStats public gameStats;
 
     // Leaderboard tracking
     address[] private leaderboardPlayers;
     mapping(address => bool) private isInLeaderboard;
+
+    // Points constants
+    uint256 public constant PARTICIPATION_POINTS = 50;
+    uint256 public constant VICTORY_POINTS = 100;
+    uint256 public constant DRAW_POINTS = 25;
 
     // ==================== Events ====================
     event GameCreated(uint256 indexed gameId, address indexed gameAddress, address indexed player1, address player2);
@@ -83,7 +90,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     error NoGames();
 
     // ==================== Constructor ====================
-    constructor(address _implementation, address _backend, address _shipToken, address _statistics) {
+    constructor(address _implementation, address _backend, address _shipToken, address _statistics, address _pointsContract) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
         _grantRole(BACKEND_ROLE, _backend);
@@ -92,6 +99,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         backend = _backend;
         shipToken = SHIPToken(_shipToken);
         statistics = BattleshipStatistics(_statistics);
+        pointsContract = BattleshipPoints(_pointsContract);
 
         nextGameId = 1;
     }
@@ -107,12 +115,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     function createGame(
         address player1,
         address player2
-    )
-        external
-        onlyRole(BACKEND_ROLE)
-        whenNotPaused
-        returns (uint256 gameId)
-    {
+    ) external onlyRole(BACKEND_ROLE) whenNotPaused returns (uint256 gameId) {
         require(player1 != player2, "Cannot play against yourself");
         require(player1 != address(0) && player2 != address(0), "Invalid player address");
 
@@ -120,7 +123,12 @@ contract GameFactoryWithStats is AccessControl, Pausable {
 
         // Generate initialization data for the proxy
         bytes memory initData = abi.encodeWithSelector(
-            BattleshipGameImplementation.initialize.selector, gameId, player1, player2, address(this), backend
+            BattleshipGameImplementation.initialize.selector,
+            gameId,
+            player1,
+            player2,
+            address(this),
+            backend
         );
 
         // Deploy new proxy contract
@@ -165,10 +173,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         uint256 duration,
         uint256 shots,
         string memory endReason
-    )
-        external
-        onlyRole(BACKEND_ROLE)
-    {
+    ) external onlyRole(BACKEND_ROLE) {
         address gameAddress = games[gameId];
         if (gameAddress == address(0)) revert GameNotFound();
 
@@ -395,6 +400,15 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     }
 
     /**
+     * @notice Set BattleshipPoints address
+     * @param _pointsContract Address of the points contract
+     */
+    function setPointsContract(address _pointsContract) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_pointsContract != address(0), "Invalid points contract address");
+        pointsContract = BattleshipPoints(_pointsContract);
+    }
+
+    /**
      * @notice Pause the factory
      */
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -472,33 +486,43 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         address player1,
         address player2,
         address winner
-    )
-        internal
-        returns (uint256 player1Reward, uint256 player2Reward)
-    {
-        // Both players get participation rewards
-        uint256 participationReward = shipToken.participationReward();
-        uint256 victoryBonus = shipToken.victoryBonus();
-
-        // Calculate rewards
-        player1Reward = participationReward + (winner == player1 ? victoryBonus : 0);
-        player2Reward = participationReward + (winner == player2 ? victoryBonus : 0);
-
-        try shipToken.mintGameReward(player1, winner == player1, gameId) {
-            playerStats[player1].totalRewardsEarned += player1Reward;
-            emit RewardsDistributed(gameId, player1, player1Reward, winner == player1);
-        } catch {
-            // Handle reward failure - could be cooldown or daily limit
-            player1Reward = 0; // If minting fails, set reward to 0
+    ) internal returns (uint256 player1Reward, uint256 player2Reward) {
+        // Convert gameId to bytes32 for points contract
+        bytes32 gameIdBytes = bytes32(gameId);
+        
+        // Award points based on game outcome
+        if (winner == address(0)) {
+            // Draw case - both players get draw points
+            player1Reward = DRAW_POINTS;
+            player2Reward = DRAW_POINTS;
+            
+            pointsContract.awardPoints(player1, DRAW_POINTS, "GAME_DRAW", gameIdBytes);
+            pointsContract.awardPoints(player2, DRAW_POINTS, "GAME_DRAW", gameIdBytes);
+        } else {
+            // Victory case
+            if (winner == player1) {
+                player1Reward = PARTICIPATION_POINTS + VICTORY_POINTS;
+                player2Reward = PARTICIPATION_POINTS;
+                
+                pointsContract.awardPoints(player1, VICTORY_POINTS, "GAME_WIN", gameIdBytes);
+                pointsContract.awardPoints(player1, PARTICIPATION_POINTS, "GAME_PARTICIPATION", gameIdBytes);
+                pointsContract.awardPoints(player2, PARTICIPATION_POINTS, "GAME_PARTICIPATION", gameIdBytes);
+            } else {
+                player1Reward = PARTICIPATION_POINTS;
+                player2Reward = PARTICIPATION_POINTS + VICTORY_POINTS;
+                
+                pointsContract.awardPoints(player2, VICTORY_POINTS, "GAME_WIN", gameIdBytes);
+                pointsContract.awardPoints(player1, PARTICIPATION_POINTS, "GAME_PARTICIPATION", gameIdBytes);
+                pointsContract.awardPoints(player2, PARTICIPATION_POINTS, "GAME_PARTICIPATION", gameIdBytes);
+            }
         }
 
-        try shipToken.mintGameReward(player2, winner == player2, gameId) {
-            playerStats[player2].totalRewardsEarned += player2Reward;
-            emit RewardsDistributed(gameId, player2, player2Reward, winner == player2);
-        } catch {
-            // Handle reward failure - could be cooldown or daily limit
-            player2Reward = 0; // If minting fails, set reward to 0
-        }
+        // Update player reward statistics with points
+        playerStats[player1].totalRewardsEarned += player1Reward;
+        playerStats[player2].totalRewardsEarned += player2Reward;
+
+        emit RewardsDistributed(gameId, player1, player1Reward, winner == player1);
+        emit RewardsDistributed(gameId, player2, player2Reward, winner == player2);
 
         return (player1Reward, player2Reward);
     }

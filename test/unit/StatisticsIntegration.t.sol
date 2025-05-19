@@ -6,6 +6,7 @@ import "../../src/factories/GameFactory.sol";
 import "../../src/BattleshipGameImplementation.sol";
 import "../../src/BattleshipStatistics.sol";
 import "../../src/ShipToken.sol";
+import "../../src/BattleshipPoints.sol";
 import "../../src/proxies/BattleShipGameProxy.sol";
 
 contract StatisticsIntegrationTest is Test {
@@ -14,6 +15,7 @@ contract StatisticsIntegrationTest is Test {
     BattleshipGameImplementation implementation;
     BattleshipStatistics statistics;
     SHIPToken shipToken;
+    BattleshipPoints pointsContract;
 
     // Test addresses
     address admin = address(0x1);
@@ -28,13 +30,21 @@ contract StatisticsIntegrationTest is Test {
         implementation = new BattleshipGameImplementation();
         statistics = new BattleshipStatistics(admin);
         shipToken = new SHIPToken(admin, admin, 1_000_000 ether);
+        pointsContract = new BattleshipPoints();
 
-        factory = new GameFactoryWithStats(address(implementation), backend, address(shipToken), address(statistics));
+        factory = new GameFactoryWithStats(
+            address(implementation), 
+            backend, 
+            address(shipToken), 
+            address(statistics),
+            address(pointsContract)
+        );
 
         // Set up permissions
         bytes32 statsUpdaterRole = statistics.STATS_UPDATER_ROLE();
         statistics.grantRole(statsUpdaterRole, address(factory));
         shipToken.setDistributor(address(factory));
+        pointsContract.addAuthorizedSource(address(factory));
 
         vm.stopPrank();
     }

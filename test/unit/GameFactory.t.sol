@@ -6,6 +6,7 @@ import { GameFactoryWithStats } from "../../src/factories/GameFactory.sol";
 import { BattleshipGameImplementation } from "../../src/BattleshipGameImplementation.sol";
 import { SHIPToken } from "../../src/ShipToken.sol";
 import { BattleshipStatistics } from "../../src/BattleshipStatistics.sol";
+import { BattleshipPoints } from "../../src/BattleshipPoints.sol";
 
 contract MockSHIPToken {
     function participationReward() external pure returns (uint256) {
@@ -27,6 +28,7 @@ contract GameFactoryTest is Test {
     BattleshipGameImplementation implementation;
     MockSHIPToken shipToken;
     BattleshipStatistics statistics;
+    BattleshipPoints pointsContract;
 
     // Test accounts
     address constant ADMIN = address(0x1);
@@ -46,12 +48,25 @@ contract GameFactoryTest is Test {
         // Deploy statistics contract
         statistics = new BattleshipStatistics(ADMIN);
 
+        // Deploy points contract
+        pointsContract = new BattleshipPoints();
+
         // Deploy the factory
         vm.startPrank(ADMIN);
-        factory = new GameFactoryWithStats(address(implementation), BACKEND, address(shipToken), address(statistics));
+        factory = new GameFactoryWithStats(
+            address(implementation), 
+            BACKEND, 
+            address(shipToken), 
+            address(statistics),
+            address(pointsContract)
+        );
 
         // Set up permissions
         statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
+        
+        // Authorize factory to award points
+        pointsContract.addAuthorizedSource(address(factory));
+        
         vm.stopPrank();
     }
 
@@ -61,6 +76,7 @@ contract GameFactoryTest is Test {
         assertEq(factory.backend(), BACKEND);
         assertEq(address(factory.shipToken()), address(shipToken));
         assertEq(address(factory.statistics()), address(statistics));
+        assertEq(address(factory.pointsContract()), address(pointsContract));
 
         // Check roles
         assertTrue(factory.hasRole(factory.DEFAULT_ADMIN_ROLE(), ADMIN));
@@ -319,6 +335,32 @@ contract GameFactoryTest is Test {
         factory.setStatistics(address(0));
     }
 
+    // Test setting points contract
+    function testSetPointsContract() public {
+        address newPoints = address(0x9);
+
+        vm.prank(ADMIN);
+        factory.setPointsContract(newPoints);
+
+        assertEq(address(factory.pointsContract()), newPoints);
+    }
+
+    // Test that only admin can set points contract
+    function test_RevertWhen_SetPointsContractNotAdmin() public {
+        address newPoints = address(0x9);
+
+        vm.prank(RANDOM_USER);
+        vm.expectRevert();
+        factory.setPointsContract(newPoints);
+    }
+
+    // Test setting points contract to zero address
+    function test_RevertWhen_SetPointsContractZeroAddress() public {
+        vm.prank(ADMIN);
+        vm.expectRevert();
+        factory.setPointsContract(address(0));
+    }
+
     // Test pausing the factory
     function testPause() public {
         vm.prank(ADMIN);
@@ -406,5 +448,89 @@ contract GameFactoryTest is Test {
         assertEq(games.length, 2);
         assertEq(games[0], gameId1);
         assertEq(games[1], gameId2);
+    }
+
+    // Test that points are awarded correctly on game completion
+    function testPointsAwardedOnGameCompletion() public {
+        // Create a game
+        (uint256 gameId, address gameAddress) = _createGame();
+
+        // Start the game
+        vm.prank(BACKEND);
+        BattleshipGameImplementation(gameAddress).startGame();
+
+        // Submit game result
+        vm.prank(BACKEND);
+        BattleshipGameImplementation(gameAddress).submitGameResult(
+            PLAYER1, // winner
+            20, // shots
+            "completed"
+        );
+
+        // Get initial points
+        uint256 player1PointsBefore = pointsContract.getTotalPoints(PLAYER1);
+        uint256 player2PointsBefore = pointsContract.getTotalPoints(PLAYER2);
+
+        // Report completion (this should award points)
+        vm.prank(BACKEND);
+        factory.reportGameCompletion(
+            gameId,
+            PLAYER1, // winner
+            300, // duration
+            20, // shots
+            "completed"
+        );
+
+        // Check points were awarded
+        uint256 player1PointsAfter = pointsContract.getTotalPoints(PLAYER1);
+        uint256 player2PointsAfter = pointsContract.getTotalPoints(PLAYER2);
+
+        // Winner gets participation + victory points
+        assertEq(player1PointsAfter - player1PointsBefore, 
+            factory.PARTICIPATION_POINTS() + factory.VICTORY_POINTS());
+        
+        // Loser gets only participation points
+        assertEq(player2PointsAfter - player2PointsBefore, 
+            factory.PARTICIPATION_POINTS());
+    }
+
+    // Test that points are awarded correctly for a draw
+    function testPointsAwardedOnDraw() public {
+        // Create a game
+        (uint256 gameId, address gameAddress) = _createGame();
+
+        // Start the game
+        vm.prank(BACKEND);
+        BattleshipGameImplementation(gameAddress).startGame();
+
+        // Submit game result as draw
+        vm.prank(BACKEND);
+        BattleshipGameImplementation(gameAddress).submitGameResult(
+            address(0), // no winner (draw)
+            20, // shots
+            "draw"
+        );
+
+        // Get initial points
+        uint256 player1PointsBefore = pointsContract.getTotalPoints(PLAYER1);
+        uint256 player2PointsBefore = pointsContract.getTotalPoints(PLAYER2);
+
+        // Report completion
+        vm.prank(BACKEND);
+        factory.reportGameCompletion(
+            gameId,
+            address(0), // draw
+            300, // duration
+            20, // shots
+            "draw"
+        );
+
+        // Check points were awarded
+        uint256 player1PointsAfter = pointsContract.getTotalPoints(PLAYER1);
+        uint256 player2PointsAfter = pointsContract.getTotalPoints(PLAYER2);
+
+        // Both players get draw points
+        assertEq(player1PointsAfter - player1PointsBefore, factory.DRAW_POINTS());
+        assertEq(player2PointsAfter - player2PointsBefore, factory.DRAW_POINTS());
     }
 }
