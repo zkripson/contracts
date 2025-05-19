@@ -6,7 +6,6 @@ import {BattleshipBetting} from "../../src/Betting.sol";
 import {GameFactoryWithStats} from "../../src/factories/GameFactory.sol";
 import {BattleshipGameImplementation} from "../../src/BattleshipGameImplementation.sol";
 import {BattleshipStatistics} from "../../src/BattleshipStatistics.sol";
-import {SHIPToken} from "../../src/ShipToken.sol";
 import {BattleshipPoints} from "../../src/BattleshipPoints.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -35,7 +34,6 @@ contract BettingIntegrationTest is Test {
     GameFactoryWithStats factory;
     BattleshipGameImplementation implementation;
     BattleshipStatistics statistics;
-    SHIPToken shipToken;
     BattleshipPoints pointsContract;
     MockUSDC usdc;
 
@@ -52,29 +50,25 @@ contract BettingIntegrationTest is Test {
     function setUp() public {
         // Deploy all contracts in the proper order
 
-        // 1. Deploy SHIP token
-        shipToken = new SHIPToken(ADMIN, BACKEND, 0); // BACKEND will be the reward distributor
-
-        // 2. Deploy statistics contract
+        // 1. Deploy statistics contract
         statistics = new BattleshipStatistics(ADMIN);
 
-        // 3. Deploy points contract
+        // 2. Deploy points contract
         pointsContract = new BattleshipPoints();
 
-        // 4. Deploy implementation
+        // 3. Deploy implementation
         implementation = new BattleshipGameImplementation();
 
-        // 5. Deploy factory
+        // 4. Deploy factory
         vm.startPrank(ADMIN);
         factory = new GameFactoryWithStats(
-            address(implementation), 
-            BACKEND, 
-            address(shipToken), 
+            address(implementation),
+            BACKEND,
             address(statistics),
             address(pointsContract)
         );
 
-        // 6. Grant permissions
+        // 5. Grant permissions
         statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
         pointsContract.addAuthorizedSource(address(factory));
         vm.stopPrank();

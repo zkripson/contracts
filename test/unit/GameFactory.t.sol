@@ -4,29 +4,13 @@ pragma solidity >=0.8.29;
 import { Test, console2 } from "forge-std/Test.sol";
 import { GameFactoryWithStats } from "../../src/factories/GameFactory.sol";
 import { BattleshipGameImplementation } from "../../src/BattleshipGameImplementation.sol";
-import { SHIPToken } from "../../src/ShipToken.sol";
 import { BattleshipStatistics } from "../../src/BattleshipStatistics.sol";
 import { BattleshipPoints } from "../../src/BattleshipPoints.sol";
-
-contract MockSHIPToken {
-    function participationReward() external pure returns (uint256) {
-        return 10 ether;
-    }
-
-    function victoryBonus() external pure returns (uint256) {
-        return 25 ether;
-    }
-
-    function mintGameReward(address, bool, uint256) external pure returns (bool) {
-        return true;
-    }
-}
 
 contract GameFactoryTest is Test {
     // Contracts
     GameFactoryWithStats factory;
     BattleshipGameImplementation implementation;
-    MockSHIPToken shipToken;
     BattleshipStatistics statistics;
     BattleshipPoints pointsContract;
 
@@ -42,9 +26,6 @@ contract GameFactoryTest is Test {
         // Deploy the implementation contract
         implementation = new BattleshipGameImplementation();
 
-        // Deploy mock token
-        shipToken = new MockSHIPToken();
-
         // Deploy statistics contract
         statistics = new BattleshipStatistics(ADMIN);
 
@@ -56,7 +37,6 @@ contract GameFactoryTest is Test {
         factory = new GameFactoryWithStats(
             address(implementation), 
             BACKEND, 
-            address(shipToken), 
             address(statistics),
             address(pointsContract)
         );
@@ -74,7 +54,6 @@ contract GameFactoryTest is Test {
     function testInitialization() public {
         assertEq(factory.currentImplementation(), address(implementation));
         assertEq(factory.backend(), BACKEND);
-        assertEq(address(factory.shipToken()), address(shipToken));
         assertEq(address(factory.statistics()), address(statistics));
         assertEq(address(factory.pointsContract()), address(pointsContract));
 
@@ -283,31 +262,6 @@ contract GameFactoryTest is Test {
         factory.setBackend(address(0));
     }
 
-    // Test setting ship token
-    function testSetShipToken() public {
-        address newToken = address(0x7);
-
-        vm.prank(ADMIN);
-        factory.setShipToken(newToken);
-
-        assertEq(address(factory.shipToken()), newToken);
-    }
-
-    // Test that only admin can set ship token
-    function test_RevertWhen_SetShipTokenNotAdmin() public {
-        address newToken = address(0x7);
-
-        vm.prank(RANDOM_USER);
-        vm.expectRevert();
-        factory.setShipToken(newToken);
-    }
-
-    // Test setting ship token to zero address
-    function test_RevertWhen_SetShipTokenZeroAddress() public {
-        vm.prank(ADMIN);
-        vm.expectRevert();
-        factory.setShipToken(address(0));
-    }
 
     // Test setting statistics
     function testSetStatistics() public {

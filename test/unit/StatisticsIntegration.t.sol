@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../../src/factories/GameFactory.sol";
 import "../../src/BattleshipGameImplementation.sol";
 import "../../src/BattleshipStatistics.sol";
-import "../../src/ShipToken.sol";
 import "../../src/BattleshipPoints.sol";
 import "../../src/proxies/BattleShipGameProxy.sol";
 
@@ -14,7 +13,6 @@ contract StatisticsIntegrationTest is Test {
     GameFactoryWithStats factory;
     BattleshipGameImplementation implementation;
     BattleshipStatistics statistics;
-    SHIPToken shipToken;
     BattleshipPoints pointsContract;
 
     // Test addresses
@@ -29,13 +27,11 @@ contract StatisticsIntegrationTest is Test {
         // Deploy contracts
         implementation = new BattleshipGameImplementation();
         statistics = new BattleshipStatistics(admin);
-        shipToken = new SHIPToken(admin, admin, 1_000_000 ether);
         pointsContract = new BattleshipPoints();
 
         factory = new GameFactoryWithStats(
             address(implementation), 
             backend, 
-            address(shipToken), 
             address(statistics),
             address(pointsContract)
         );
@@ -43,7 +39,6 @@ contract StatisticsIntegrationTest is Test {
         // Set up permissions
         bytes32 statsUpdaterRole = statistics.STATS_UPDATER_ROLE();
         statistics.grantRole(statsUpdaterRole, address(factory));
-        shipToken.setDistributor(address(factory));
         pointsContract.addAuthorizedSource(address(factory));
 
         vm.stopPrank();

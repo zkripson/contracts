@@ -6,7 +6,6 @@ import {BattleshipBetting} from "../../src/Betting.sol";
 import {GameFactoryWithStats} from "../../src/factories/GameFactory.sol";
 import {BattleshipGameImplementation} from "../../src/BattleshipGameImplementation.sol";
 import {BattleshipStatistics} from "../../src/BattleshipStatistics.sol";
-import {SHIPToken} from "../../src/ShipToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 

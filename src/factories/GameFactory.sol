@@ -5,13 +5,12 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../proxies/BattleShipGameProxy.sol";
 import "../BattleshipGameImplementation.sol";
-import "../ShipToken.sol";
 import "../BattleshipStatistics.sol";
 import "../BattleshipPoints.sol";
 
 /**
  * @title GameFactoryWithStats
- * @notice Creates and manages ZK Battleship games with comprehensive statistics
+ * @notice Creates and manages ZK Battleship games with comprehensive statistics using a points system
  */
 contract GameFactoryWithStats is AccessControl, Pausable {
     // ==================== Roles ====================
@@ -59,7 +58,6 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     uint256 private nextGameId;
     address public currentImplementation;
     address public backend;
-    SHIPToken public shipToken;
     BattleshipStatistics public statistics;
     BattleshipPoints public pointsContract;
 
@@ -90,14 +88,13 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     error NoGames();
 
     // ==================== Constructor ====================
-    constructor(address _implementation, address _backend, address _shipToken, address _statistics, address _pointsContract) {
+    constructor(address _implementation, address _backend, address _statistics, address _pointsContract) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
         _grantRole(BACKEND_ROLE, _backend);
 
         currentImplementation = _implementation;
         backend = _backend;
-        shipToken = SHIPToken(_shipToken);
         statistics = BattleshipStatistics(_statistics);
         pointsContract = BattleshipPoints(_pointsContract);
 
@@ -191,7 +188,7 @@ contract GameFactoryWithStats is AccessControl, Pausable {
         // Update player statistics
         _updatePlayerStats(player1, player2, winner, duration);
 
-        // Distribute rewards
+        // Distribute points as rewards
         uint256 player1Rewards = 0;
         uint256 player2Rewards = 0;
         (player1Rewards, player2Rewards) = _distributeRewards(gameId, player1, player2, winner);
@@ -382,15 +379,6 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     }
 
     /**
-     * @notice Set SHIPToken address
-     * @param _shipToken Address of the token contract
-     */
-    function setShipToken(address _shipToken) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_shipToken != address(0), "Invalid token address");
-        shipToken = SHIPToken(_shipToken);
-    }
-
-    /**
      * @notice Set BattleshipStatistics address
      * @param _statistics Address of the statistics contract
      */
@@ -473,13 +461,13 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     }
 
     /**
-     * @notice Distribute rewards to players
+     * @notice Distribute points rewards to players
      * @param gameId Game ID
      * @param player1 First player
      * @param player2 Second player
      * @param winner Winner (address(0) for draw)
-     * @return player1Reward Amount rewarded to player1
-     * @return player2Reward Amount rewarded to player2
+     * @return player1Reward Points awarded to player1
+     * @return player2Reward Points awarded to player2
      */
     function _distributeRewards(
         uint256 gameId,

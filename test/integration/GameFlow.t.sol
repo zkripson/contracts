@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.29;
 
-import { Test, console2 } from "forge-std/Test.sol";
-import { BattleshipGameImplementation } from "../../src/BattleshipGameImplementation.sol";
-import { GameFactoryWithStats } from "../../src/factories/GameFactory.sol";
-import { SHIPToken } from "../../src/ShipToken.sol";
-import { BattleshipStatistics } from "../../src/BattleshipStatistics.sol";
-import { BattleshipPoints } from "../../src/BattleshipPoints.sol";
+import {Test, console2} from "forge-std/Test.sol";
+import {BattleshipGameImplementation} from "../../src/BattleshipGameImplementation.sol";
+import {GameFactoryWithStats} from "../../src/factories/GameFactory.sol";
+import {BattleshipStatistics} from "../../src/BattleshipStatistics.sol";
+import {BattleshipPoints} from "../../src/BattleshipPoints.sol";
 
 contract GameFlowTest is Test {
     // Contracts
     BattleshipGameImplementation implementation;
     GameFactoryWithStats factory;
-    SHIPToken token;
     BattleshipStatistics statistics;
     BattleshipPoints pointsContract;
 
@@ -30,9 +28,6 @@ contract GameFlowTest is Test {
     function setUp() public {
         vm.startPrank(ADMIN);
 
-        // Deploy token
-        token = new SHIPToken(ADMIN, BACKEND, 1_000_000 * 10 ** 18);
-
         // Deploy statistics
         statistics = new BattleshipStatistics(ADMIN);
 
@@ -44,16 +39,15 @@ contract GameFlowTest is Test {
 
         // Deploy factory with points contract
         factory = new GameFactoryWithStats(
-            address(implementation), 
-            BACKEND, 
-            address(token), 
+            address(implementation),
+            BACKEND,
             address(statistics),
             address(pointsContract)
         );
 
         // Setup roles
         statistics.grantRole(statistics.STATS_UPDATER_ROLE(), address(factory));
-        
+
         // Authorize factory to award points
         pointsContract.addAuthorizedSource(address(factory));
 
@@ -97,7 +91,7 @@ contract GameFlowTest is Test {
 
         // Verify the game duration
         assertEq(game.getGameDuration(), 300);
-        
+
         // 4. Report game completion to factory to award points
         vm.prank(BACKEND);
         factory.reportGameCompletion(
@@ -107,14 +101,14 @@ contract GameFlowTest is Test {
             20, // shots
             "completed"
         );
-        
+
         // 5. Verify points were awarded
         uint256 player1Points = pointsContract.getTotalPoints(PLAYER1);
         uint256 player2Points = pointsContract.getTotalPoints(PLAYER2);
-        
+
         // Winner gets participation + victory points
         assertEq(player1Points, factory.PARTICIPATION_POINTS() + factory.VICTORY_POINTS());
-        
+
         // Loser gets only participation points
         assertEq(player2Points, factory.PARTICIPATION_POINTS());
     }
@@ -138,10 +132,6 @@ contract GameFlowTest is Test {
         // 4. Ensure no points were awarded
         assertEq(pointsContract.getTotalPoints(PLAYER1), 0);
         assertEq(pointsContract.getTotalPoints(PLAYER2), 0);
-        
-        // Still verify no tokens were minted
-        assertEq(token.balanceOf(PLAYER1), 0);
-        assertEq(token.balanceOf(PLAYER2), 0);
     }
 
     // Test multiple games and win streak
@@ -163,8 +153,7 @@ contract GameFlowTest is Test {
             vm.prank(BACKEND);
             game.submitGameResult(PLAYER1, 20, "completed");
 
-            // Skip cooldown period for token rewards
-            vm.warp(block.timestamp + 5 minutes + 1);
+            vm.warp(block.timestamp + 1);
         }
     }
 
