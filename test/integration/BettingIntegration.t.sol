@@ -50,17 +50,18 @@ contract BettingIntegrationTest is Test {
     function setUp() public {
         // Deploy all contracts in the proper order
 
+        vm.startPrank(ADMIN);
+
         // 1. Deploy statistics contract
         statistics = new BattleshipStatistics(ADMIN);
 
-        // 2. Deploy points contract
+        // 2. Deploy points contract (will be owned by ADMIN because we're pranking as ADMIN)
         pointsContract = new BattleshipPoints();
 
         // 3. Deploy implementation
         implementation = new BattleshipGameImplementation();
 
         // 4. Deploy factory
-        vm.startPrank(ADMIN);
         factory = new GameFactoryWithStats(
             address(implementation),
             BACKEND,

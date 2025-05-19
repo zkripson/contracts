@@ -23,17 +23,18 @@ contract GameFactoryTest is Test {
 
     // Setup before each test
     function setUp() public {
+        vm.startPrank(ADMIN);
+        
         // Deploy the implementation contract
         implementation = new BattleshipGameImplementation();
 
         // Deploy statistics contract
         statistics = new BattleshipStatistics(ADMIN);
 
-        // Deploy points contract
+        // Deploy points contract (will be owned by ADMIN because we're pranking as ADMIN)
         pointsContract = new BattleshipPoints();
 
         // Deploy the factory
-        vm.startPrank(ADMIN);
         factory = new GameFactoryWithStats(
             address(implementation), 
             BACKEND, 
