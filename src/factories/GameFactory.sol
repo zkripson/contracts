@@ -67,10 +67,10 @@ contract GameFactoryWithStats is AccessControl, Pausable {
     address[] private leaderboardPlayers;
     mapping(address => bool) private isInLeaderboard;
 
-    // Points constants
-    uint256 public constant PARTICIPATION_POINTS = 50;
-    uint256 public constant VICTORY_POINTS = 100;
-    uint256 public constant DRAW_POINTS = 25;
+    // Points constants - basic game completion rewards
+    uint256 public constant PARTICIPATION_POINTS = 50;    // Base points for playing
+    uint256 public constant VICTORY_POINTS = 150;        // Additional points for winning (200 total)
+    uint256 public constant DRAW_POINTS = 50;            // Both players get participation points for draw
 
     // ==================== Events ====================
     event GameCreated(uint256 indexed gameId, address indexed gameAddress, address indexed player1, address player2);
