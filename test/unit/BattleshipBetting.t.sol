@@ -270,7 +270,7 @@ contract BattleshipBettingTest is Test {
         assertEq(uint256(invite.gameStatus), uint256(BattleshipBetting.GameStatus.WAITING));
 
         // Check game mapping
-        assertEq(betting.gameIdToBettingInvite(gameId), inviteId);
+        assertEq(betting.gameIdToInviteId(gameId), inviteId);
     }
 
     function test_RevertWhen_CreateGameNotBackend() public {
@@ -592,7 +592,7 @@ contract BattleshipBettingTest is Test {
         BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
         assertEq(uint256(invite.betStatus), uint256(BattleshipBetting.BetStatus.Resolved));
         assertTrue(invite.fundsDistributed);
-        assertEq(betting.gameIdToBettingInvite(gameId), inviteId);
+        assertEq(betting.gameIdToInviteId(gameId), inviteId);
     }
 
     function testMultipleInvitesFromSamePlayer() public {

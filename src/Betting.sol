@@ -58,7 +58,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     address public treasury;
 
     mapping(uint256 => BettingInvite) public bettingInvites;
-    mapping(uint256 => uint256) public gameIdToBettingInvite; // Reverse lookup: gameId => inviteId
+    mapping(uint256 => uint256[]) public inviteGameIds; // inviteId => gameId[] for replays
+    mapping(uint256 => uint256) public gameIdToInviteId; // gameId => inviteId
     mapping(address => uint256[]) public playerInvites; // Track player's invites
 
     uint256 private nextInviteId = 1;
@@ -73,6 +74,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     event GameResolved(uint256 indexed gameId, address indexed winner, uint256 winnerPayout, uint256 platformFee);
     event InviteCancelled(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
     event InviteExpired(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
+    event GameDraw(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
 
     // ==================== Errors ====================
@@ -183,7 +185,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Create a game from a matched betting invite
+     * @notice Create a game from a matched betting invite (including replays)
      * @param inviteId ID of the matched invite
      * @return gameId ID of the created game
      */
@@ -192,30 +194,40 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
 
         // Validate invite
         if (invite.creator == address(0)) revert InviteNotFound();
-        if (invite.betStatus != BetStatus.Matched) revert InvalidInviteStatus();
+        
+        // Allow creating games for Matched OR Escrowed status (for replays)
+        if (invite.betStatus != BetStatus.Matched && invite.betStatus != BetStatus.Escrowed) {
+            revert InvalidInviteStatus();
+        }
 
         // Create game via GameFactory
         gameId = gameFactory.createGame(invite.creator, invite.acceptor);
 
-        // Update invite status
-        invite.gameId = gameId;
-        invite.betStatus = BetStatus.Escrowed;
-        invite.gameStatus = GameStatus.WAITING; // Now has both players, waiting for boards
+        // Update invite status (only if first game)
+        if (invite.betStatus == BetStatus.Matched) {
+            invite.betStatus = BetStatus.Escrowed;
+            invite.gameStatus = GameStatus.WAITING;
+            invite.gameId = gameId; // Keep reference to first game
+        }
 
-        // Create reverse mapping
-        gameIdToBettingInvite[gameId] = inviteId;
+        // Track all games for this invite
+        inviteGameIds[inviteId].push(gameId);
+        gameIdToInviteId[gameId] = inviteId;
 
         emit GameCreated(gameId, inviteId, invite.creator, invite.acceptor);
         return gameId;
     }
 
     /**
-     * @notice Resolve a game and distribute winnings
-     * @param gameId ID of the completed game
-     * @param winner Address of the winner (or address(0) for draw)
+     * @notice Resolve a game and distribute winnings (only for decisive wins)
+     * @param gameId ID of the completed game  
+     * @param winner Address of the winner (must NOT be address(0))
      */
     function resolveGame(uint256 gameId, address winner) external onlyRole(BACKEND_ROLE) whenNotPaused nonReentrant {
-        uint256 inviteId = gameIdToBettingInvite[gameId];
+        // Draws should not call this function - they should just create new games
+        require(winner != address(0), "Draws should not resolve betting - create replay game instead");
+        
+        uint256 inviteId = gameIdToInviteId[gameId];
         if (inviteId == 0) revert GameNotFound();
 
         BettingInvite storage invite = bettingInvites[inviteId];
@@ -223,6 +235,11 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         // Validate game state
         if (invite.betStatus != BetStatus.Escrowed) revert InvalidInviteStatus();
         if (invite.fundsDistributed) revert AlreadyResolved();
+
+        // Validate winner is one of the players
+        if (winner != invite.creator && winner != invite.acceptor) {
+            revert UnauthorizedAction();
+        }
 
         // Mark as resolved
         invite.betStatus = BetStatus.Resolved;
@@ -233,21 +250,26 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         uint256 platformFee = (totalPool * PLATFORM_FEE_PERCENTAGE) / 100;
         uint256 winnerPayout = totalPool - platformFee;
 
-        if (winner == address(0)) {
-            // Draw - return stakes to both players
-            usdcToken.safeTransfer(invite.creator, invite.stakeAmount);
-            usdcToken.safeTransfer(invite.acceptor, invite.stakeAmount);
-            winnerPayout = 0;
-            platformFee = 0;
-        } else if (winner == invite.creator || winner == invite.acceptor) {
-            // Valid winner - distribute funds
-            usdcToken.safeTransfer(treasury, platformFee);
-            usdcToken.safeTransfer(winner, winnerPayout);
-        } else {
-            revert UnauthorizedAction();
-        }
+        // Distribute funds to winner
+        usdcToken.safeTransfer(treasury, platformFee);
+        usdcToken.safeTransfer(winner, winnerPayout);
 
         emit GameResolved(gameId, winner, winnerPayout, platformFee);
+    }
+
+    /**
+     * @notice Handle a draw by recording it but keeping bet active for replay
+     * @param gameId ID of the game that ended in draw
+     */
+    function recordDraw(uint256 gameId) external onlyRole(BACKEND_ROLE) whenNotPaused {
+        uint256 inviteId = gameIdToInviteId[gameId];
+        if (inviteId == 0) revert GameNotFound();
+
+        BettingInvite storage invite = bettingInvites[inviteId];
+        if (invite.betStatus != BetStatus.Escrowed) revert InvalidInviteStatus();
+
+        // Just emit event for tracking, but keep bet active
+        emit GameDraw(gameId, inviteId, invite.creator, invite.acceptor);
     }
 
     /**
@@ -313,6 +335,15 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /**
+     * @notice Get all game IDs associated with a betting invite
+     * @param inviteId ID of the betting invite
+     * @return gameIds Array of game IDs (including replays)
+     */
+    function getInviteGameIds(uint256 inviteId) external view returns (uint256[] memory gameIds) {
+        return inviteGameIds[inviteId];
+    }
+
+    /**
      * @notice Get betting info for a game
      * @param gameId Game ID
      * @return inviteId Associated invite ID
@@ -322,7 +353,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     function getGameBettingInfo(
         uint256 gameId
     ) external view returns (uint256 inviteId, uint256 totalPool, bool resolved) {
-        inviteId = gameIdToBettingInvite[gameId];
+        inviteId = gameIdToInviteId[gameId];
         if (inviteId > 0) {
             BettingInvite memory invite = bettingInvites[inviteId];
             totalPool = invite.stakeAmount * 2;
