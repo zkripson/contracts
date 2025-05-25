@@ -175,7 +175,7 @@ contract BettingIntegrationTest is Test {
      * @notice Test draw scenario with betting
      * @dev When a game ends in a draw, both players get their stakes back
      */
-    function testDrawScenarioWithBetting() public {
+    function testDrawReplayScenarioWithBetting() public {
         // Create and match bet
         vm.prank(PLAYER1);
         uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
@@ -183,18 +183,41 @@ contract BettingIntegrationTest is Test {
         vm.prank(PLAYER2);
         betting.acceptInvite(inviteId, PLAYER2);
 
-        // Create game
+        // Create first game
         vm.prank(BACKEND);
-        uint256 gameId = betting.createGame(inviteId);
+        uint256 gameId1 = betting.createGame(inviteId);
 
-        // Resolve as draw (winner = address(0))
+        // First game ends in draw - record it but don't resolve betting
         vm.prank(BACKEND);
-        betting.resolveGame(gameId, address(0));
+        betting.recordDraw(gameId1);
 
-        // Both players should get their stakes back
-        assertEq(usdc.balanceOf(PLAYER1), STANDARD_STAKE * 10); // Back to original
-        assertEq(usdc.balanceOf(PLAYER2), STANDARD_STAKE * 10); // Back to original
-        assertEq(usdc.balanceOf(TREASURY), 0); // No platform fee on draws
+        // Funds should still be escrowed
+        assertEq(usdc.balanceOf(PLAYER1), STANDARD_STAKE * 9); // Still escrowed
+        assertEq(usdc.balanceOf(PLAYER2), STANDARD_STAKE * 9); // Still escrowed
+        assertEq(usdc.balanceOf(address(betting)), STANDARD_STAKE * 2);
+
+        // Create replay game with same invite
+        vm.prank(BACKEND);
+        uint256 gameId2 = betting.createGame(inviteId);
+
+        // Verify both games are tracked for this invite
+        uint256[] memory gameIds = betting.getInviteGameIds(inviteId);
+        assertEq(gameIds.length, 2);
+        assertEq(gameIds[0], gameId1);
+        assertEq(gameIds[1], gameId2);
+
+        // Second game has a winner - resolve betting
+        vm.prank(BACKEND);
+        betting.resolveGame(gameId2, PLAYER1);
+
+        // Check final balances - winner gets pool minus platform fee
+        uint256 totalPool = STANDARD_STAKE * 2;
+        uint256 platformFee = (totalPool * 10) / 100; // 10% platform fee
+        uint256 winnerPayout = totalPool - platformFee;
+
+        assertEq(usdc.balanceOf(PLAYER1), STANDARD_STAKE * 9 + winnerPayout);
+        assertEq(usdc.balanceOf(PLAYER2), STANDARD_STAKE * 9); // Lost stake
+        assertEq(usdc.balanceOf(TREASURY), platformFee);
     }
 
     /**

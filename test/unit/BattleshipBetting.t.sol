@@ -59,6 +59,7 @@ contract BattleshipBettingTest is Test {
     event InviteAccepted(uint256 indexed inviteId, address indexed acceptor);
     event GameCreated(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
     event GameResolved(uint256 indexed gameId, address indexed winner, uint256 winnerPayout, uint256 platformFee);
+    event GameDraw(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
     event InviteCancelled(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
     event InviteExpired(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
@@ -332,7 +333,7 @@ contract BattleshipBettingTest is Test {
         assertTrue(invite.fundsDistributed);
     }
 
-    function testResolveGameAsDraw() public {
+    function testRecordDraw() public {
         // Setup: Create invite, accept, and create game
         vm.prank(PLAYER1);
         uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
@@ -346,16 +347,38 @@ contract BattleshipBettingTest is Test {
         uint256 p1BalanceBefore = usdc.balanceOf(PLAYER1);
         uint256 p2BalanceBefore = usdc.balanceOf(PLAYER2);
 
-        // Resolve as draw
+        // Record draw (doesn't resolve betting)
         vm.prank(BACKEND);
-        vm.expectEmit(true, true, false, true);
-        emit GameResolved(gameId, address(0), 0, 0);
-        betting.resolveGame(gameId, address(0));
+        vm.expectEmit(true, true, true, true);
+        emit GameDraw(gameId, inviteId, PLAYER1, PLAYER2);
+        betting.recordDraw(gameId);
 
-        // Check balances - both players get their stakes back
-        assertEq(usdc.balanceOf(PLAYER1), p1BalanceBefore + STANDARD_STAKE);
-        assertEq(usdc.balanceOf(PLAYER2), p2BalanceBefore + STANDARD_STAKE);
-        assertEq(usdc.balanceOf(address(betting)), 0);
+        // Check balances - funds stay escrowed for replay
+        assertEq(usdc.balanceOf(PLAYER1), p1BalanceBefore);
+        assertEq(usdc.balanceOf(PLAYER2), p2BalanceBefore);
+        assertEq(usdc.balanceOf(address(betting)), STANDARD_STAKE * 2);
+
+        // Betting invite should still be escrowed (not resolved)
+        BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
+        assertEq(uint256(invite.betStatus), uint256(BattleshipBetting.BetStatus.Escrowed));
+        assertFalse(invite.fundsDistributed);
+    }
+
+    function test_RevertWhen_ResolveGameWithDraw() public {
+        // Setup: Create invite, accept, and create game
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        uint256 gameId = betting.createGame(inviteId);
+
+        // Try to resolve with address(0) (draw) - should revert
+        vm.prank(BACKEND);
+        vm.expectRevert("Draws should not resolve betting - create replay game instead");
+        betting.resolveGame(gameId, address(0));
     }
 
     function test_RevertWhen_ResolveInvalidWinner() public {
