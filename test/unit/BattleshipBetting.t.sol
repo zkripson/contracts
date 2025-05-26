@@ -28,7 +28,7 @@ contract MockGame {
     GameState public state;
     
     constructor() {
-        state = GameState.Playing; // Default to playing state for emergency refund tests
+        state = GameState.Completed; // Default to completed state for resolution tests
     }
     
     function setState(GameState _state) external {
@@ -393,7 +393,7 @@ contract BattleshipBettingTest is Test {
 
         // Try to resolve with address(0) (draw) - should revert
         vm.prank(BACKEND);
-        vm.expectRevert("Draws should not resolve betting - create replay game instead");
+        vm.expectRevert(BattleshipBetting.InvalidWinnerAddress.selector);
         betting.resolveGame(gameId, address(0));
     }
 
@@ -580,7 +580,7 @@ contract BattleshipBettingTest is Test {
 
     function test_RevertWhen_SetTreasuryZeroAddress() public {
         vm.prank(ADMIN);
-        vm.expectRevert("Invalid treasury address");
+        vm.expectRevert(BattleshipBetting.InvalidTreasuryAddress.selector);
         betting.setTreasury(address(0));
     }
 
@@ -658,7 +658,11 @@ contract BattleshipBettingTest is Test {
         betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
-        betting.createGame(inviteId);
+        uint256 gameId = betting.createGame(inviteId);
+
+        // Set game to Playing state for emergency refund (not Completed)
+        address gameAddress = mockFactory.games(gameId);
+        MockGame(gameAddress).setState(MockGame.GameState.Playing);
 
         // Pause contract for emergency
         vm.prank(ADMIN);

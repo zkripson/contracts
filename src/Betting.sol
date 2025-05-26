@@ -75,6 +75,12 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     uint256 public inviteTimeout = 24 hours;
     uint256 public platformFeePercentage = 10; // 10% to treasury  
     uint256 public constant MIN_STAKE_AMOUNT = 1 * 10 ** 6; // $1 USDC (6 decimals) - Keep as reference
+    
+    // Nonce mechanism for replay protection (Security Fix H-5)
+    mapping(address => uint256) public userNonces;
+    
+    // Maximum allowed deadline (1 week) for security
+    uint256 public constant MAX_DEADLINE = 7 days;
 
     // ==================== Events ====================
     event InviteCreated(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount, address indexed token);
@@ -91,6 +97,9 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     event TokenMinStakeUpdated(address indexed token, uint256 oldMinStake, uint256 newMinStake);
     event PlatformFeeUpdated(uint256 oldFee, uint256 newFee);
     event InviteTimeoutUpdated(uint256 oldTimeout, uint256 newTimeout);
+    event DrawCountIncremented(uint256 indexed gameId, uint256 indexed inviteId, uint256 newDrawCount);
+    event GameStatusUpdated(uint256 indexed inviteId, GameStatus oldStatus, GameStatus newStatus);
+    event NonceIncremented(address indexed user, uint256 newNonce);
 
     // ==================== Errors ====================
     error InvalidStakeAmount();
@@ -107,6 +116,14 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     error TokenAlreadyWhitelisted();
     error InvalidTokenAddress();
     error InvalidMinStakeAmount();
+    error GameNotCompleted();
+    error GameNotInFactory();
+    error InvalidNonce();
+    error DeadlineExpired();
+    error InvalidTreasuryAddress();
+    error InvalidWinnerAddress();
+    error ERC20CallFailed();
+    error GameFactoryCallFailed();
     error InvalidFeePercentage();
     error InvalidTimeout();
 
@@ -174,8 +191,15 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
             revert InvalidStakeAmount();
         }
 
-        // Check user has sufficient balance
-        if (IERC20(betToken).balanceOf(creator) < stakeAmount) {
+        // Security Fix M-4: Improve error handling for external calls
+        uint256 creatorBalance;
+        try IERC20(betToken).balanceOf(creator) returns (uint256 balance) {
+            creatorBalance = balance;
+        } catch {
+            revert ERC20CallFailed();
+        }
+        
+        if (creatorBalance < stakeAmount) {
             revert InsufficientBalance();
         }
 
@@ -194,6 +218,10 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
 
         // Track invite for player
         playerInvites[creator].push(inviteId);
+
+        // Security Fix H-5: Increment nonce for replay protection
+        userNonces[creator]++;
+        emit NonceIncremented(creator, userNonces[creator]);
 
         // Escrow creator's stake
         IERC20(betToken).safeTransferFrom(creator, address(this), stakeAmount);
@@ -238,8 +266,15 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
             revert NotExpired();
         }
 
-        // Check acceptor has sufficient balance in the bet token
-        if (IERC20(invite.betToken).balanceOf(acceptor) < invite.stakeAmount) {
+        // Security Fix M-4: Improve error handling for external calls
+        uint256 acceptorBalance;
+        try IERC20(invite.betToken).balanceOf(acceptor) returns (uint256 balance) {
+            acceptorBalance = balance;
+        } catch {
+            revert ERC20CallFailed();
+        }
+        
+        if (acceptorBalance < invite.stakeAmount) {
             revert InsufficientBalance();
         }
 
@@ -249,6 +284,10 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
 
         // Track invite for acceptor
         playerInvites[acceptor].push(inviteId);
+
+        // Security Fix H-5: Increment nonce for replay protection  
+        userNonces[acceptor]++;
+        emit NonceIncremented(acceptor, userNonces[acceptor]);
 
         // Escrow acceptor's stake
         IERC20(invite.betToken).safeTransferFrom(acceptor, address(this), invite.stakeAmount);
@@ -267,19 +306,32 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         // Validate invite
         if (invite.creator == address(0)) revert InviteNotFound();
         
+        // Security Fix M-5: Add deadline validation 
+        if (block.timestamp > invite.createdAt + invite.timeout) {
+            revert DeadlineExpired();
+        }
+        
         // Allow creating games for Matched OR Escrowed status (for replays)
         if (invite.betStatus != BetStatus.Matched && invite.betStatus != BetStatus.Escrowed) {
             revert InvalidInviteStatus();
         }
 
-        // Create game via GameFactory
-        gameId = gameFactory.createGame(invite.creator, invite.acceptor);
+        // Security Fix M-4: Improve error handling for external calls
+        try gameFactory.createGame(invite.creator, invite.acceptor) returns (uint256 newGameId) {
+            gameId = newGameId;
+        } catch {
+            revert GameFactoryCallFailed();
+        }
 
         // Update invite status (only if first game)
         if (invite.betStatus == BetStatus.Matched) {
+            GameStatus oldStatus = invite.gameStatus;
             invite.betStatus = BetStatus.Escrowed;
             invite.gameStatus = GameStatus.WAITING;
             invite.gameId = gameId; // Keep reference to first game
+            
+            // Security Fix L-1: Emit event for state change
+            emit GameStatusUpdated(inviteId, oldStatus, GameStatus.WAITING);
         }
 
         // Track all games for this invite
@@ -296,8 +348,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @param winner Address of the winner (must NOT be address(0))
      */
     function resolveGame(uint256 gameId, address winner) external onlyRole(BACKEND_ROLE) whenNotPaused nonReentrant {
-        // Draws should not call this function - they should just create new games
-        require(winner != address(0), "Draws should not resolve betting - create replay game instead");
+        // Security Fix H-4: Add proper access control validation
+        if (winner == address(0)) revert InvalidWinnerAddress();
         
         uint256 inviteId = gameIdToInviteId[gameId];
         if (inviteId == 0) revert GameNotFound();
@@ -307,16 +359,38 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         // Validate game state
         if (invite.betStatus != BetStatus.Escrowed) revert InvalidInviteStatus();
         if (invite.fundsDistributed) revert AlreadyResolved();
+        
+        // Security Fix H-4: Validate game exists in GameFactory and is completed
+        address gameAddress;
+        try gameFactory.games(gameId) returns (address addr) {
+            gameAddress = addr;
+        } catch {
+            revert GameFactoryCallFailed();
+        }
+        
+        if (gameAddress == address(0)) revert GameNotInFactory();
+        
+        // Validate game is actually completed
+        try BattleshipGameImplementation(gameAddress).state() returns (BattleshipGameImplementation.GameState gameState) {
+            if (gameState != BattleshipGameImplementation.GameState.Completed) {
+                revert GameNotCompleted();
+            }
+        } catch {
+            revert GameFactoryCallFailed();
+        }
 
         // Validate winner is one of the players
         if (winner != invite.creator && winner != invite.acceptor) {
             revert UnauthorizedAction();
         }
 
-        // Mark as resolved
+        // Mark as resolved (Security Fix L-1: Add event for state change)
+        GameStatus oldStatus = invite.gameStatus;
         invite.betStatus = BetStatus.Resolved;
         invite.gameStatus = GameStatus.COMPLETED;
         invite.fundsDistributed = true;
+        
+        emit GameStatusUpdated(inviteId, oldStatus, GameStatus.COMPLETED);
 
         uint256 totalPool = invite.stakeAmount * 2;
         uint256 platformFee = Math.mulDiv(totalPool, platformFeePercentage, 100);
@@ -339,11 +413,22 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
 
         BettingInvite storage invite = bettingInvites[inviteId];
         if (invite.betStatus != BetStatus.Escrowed) revert InvalidInviteStatus();
+        
+        // Security Fix H-4: Validate game exists in GameFactory (similar to resolveGame)
+        address gameAddress;
+        try gameFactory.games(gameId) returns (address addr) {
+            gameAddress = addr;
+        } catch {
+            revert GameFactoryCallFailed();
+        }
+        
+        if (gameAddress == address(0)) revert GameNotInFactory();
 
         // Update persistent state - increment draw count
         invite.drawCount++;
 
-        // Emit event for tracking, but keep bet active for replay
+        // Security Fix L-1: Emit event for draw count increment
+        emit DrawCountIncremented(gameId, inviteId, invite.drawCount);
         emit GameDraw(gameId, inviteId, invite.creator, invite.acceptor);
     }
 
@@ -481,7 +566,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @param newTreasury New treasury address
      */
     function setTreasury(address newTreasury) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(newTreasury != address(0), "Invalid treasury address");
+        // Security Fix L-4: Standardize error messages
+        if (newTreasury == address(0)) revert InvalidTreasuryAddress();
 
         address oldTreasury = treasury;
 

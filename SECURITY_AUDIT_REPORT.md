@@ -1,7 +1,7 @@
 # BattleshipBetting Contract Security Audit Report
 
 **Audit Date:** January 2025  
-**Auditor:** Claude (AI Security Analysis)  
+**Auditor:** Claude (AI Security Analysis) & Tani (Manual Review)  
 **Contract Version:** Multi-Token Support Implementation  
 **Scope:** BattleshipBetting.sol and related token whitelisting functionality
 

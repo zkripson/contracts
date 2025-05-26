@@ -52,7 +52,7 @@ contract MockGame {
     GameState public state;
     
     constructor() {
-        state = GameState.Playing; // Default to playing state for emergency refund tests
+        state = GameState.Completed; // Default to completed state for resolution tests
     }
     
     function setState(GameState _state) external {
@@ -428,7 +428,11 @@ contract BattleshipBettingMultiTokenTest is Test {
         betting.acceptInvite(inviteId, PLAYER2);
 
         vm.prank(BACKEND);
-        betting.createGame(inviteId);
+        uint256 gameId = betting.createGame(inviteId);
+
+        // Set game to Playing state for emergency refund (not Completed)
+        address gameAddress = mockFactory.games(gameId);
+        MockGame(gameAddress).setState(MockGame.GameState.Playing);
 
         // Pause for emergency
         vm.prank(ADMIN);
