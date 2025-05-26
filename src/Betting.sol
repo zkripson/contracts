@@ -50,12 +50,18 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         GameStatus gameStatus; // Game-related status
         uint256 gameId; // Links to actual game once created
         bool fundsDistributed; // Prevents double distribution
+        address betToken; // Token used for this bet
     }
 
     // ==================== State Variables ====================
-    IERC20 public immutable usdcToken;
+    IERC20 public immutable usdcToken; // Deprecated but kept for backward compatibility
     GameFactoryWithStats public immutable gameFactory;
     address public treasury;
+    
+    // Token whitelisting
+    mapping(address => bool) public whitelistedTokens;
+    mapping(address => uint256) public tokenMinStakeAmounts; // Minimum stake per token
+    address[] public whitelistedTokensList; // For enumeration
 
     mapping(uint256 => BettingInvite) public bettingInvites;
     mapping(uint256 => uint256[]) public inviteGameIds; // inviteId => gameId[] for replays
@@ -68,7 +74,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     uint256 public constant MIN_STAKE_AMOUNT = 1 * 10 ** 6; // $1 USDC (6 decimals)
 
     // ==================== Events ====================
-    event InviteCreated(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
+    event InviteCreated(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount, address indexed token);
     event InviteAccepted(uint256 indexed inviteId, address indexed acceptor);
     event GameCreated(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
     event GameResolved(uint256 indexed gameId, address indexed winner, uint256 winnerPayout, uint256 platformFee);
@@ -77,6 +83,9 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     event GameDraw(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
     event EmergencyRefund(uint256 indexed inviteId, address indexed creator, address indexed acceptor, uint256 stakeAmount);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event TokenWhitelisted(address indexed token, uint256 minStakeAmount);
+    event TokenRemovedFromWhitelist(address indexed token);
+    event TokenMinStakeUpdated(address indexed token, uint256 oldMinStake, uint256 newMinStake);
 
     // ==================== Errors ====================
     error InvalidStakeAmount();
@@ -89,6 +98,10 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     error InsufficientBalance();
     error TransferFailed();
     error NotExpired();
+    error TokenNotWhitelisted();
+    error TokenAlreadyWhitelisted();
+    error InvalidTokenAddress();
+    error InvalidMinStakeAmount();
 
     // ==================== Constructor ====================
     constructor(address _usdcToken, address _gameFactory, address _treasury, address _backend, address _admin) {
@@ -102,6 +115,11 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         gameFactory = GameFactoryWithStats(_gameFactory);
         treasury = _treasury;
 
+        // Whitelist USDC by default for backward compatibility
+        whitelistedTokens[_usdcToken] = true;
+        tokenMinStakeAmounts[_usdcToken] = MIN_STAKE_AMOUNT;
+        whitelistedTokensList.push(_usdcToken);
+
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(BACKEND_ROLE, _backend);
         _grantRole(TREASURY_ROLE, _treasury);
@@ -110,21 +128,44 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     // ==================== Main Functions ====================
 
     /**
-     * @notice Create a betting invite with stake amount
-     * @param stakeAmount Amount in USDC to stake (with 6 decimals)
+     * @notice Create a betting invite with stake amount and token
+     * @param stakeAmount Amount to stake in the specified token
+     * @param creator Address creating the invite
+     * @param betToken Token to use for betting (must be whitelisted)
      * @return inviteId Unique identifier for the invite
      */
-    function createInvite(
+    function createInviteWithToken(
         uint256 stakeAmount,
-        address creator
+        address creator,
+        address betToken
     ) external whenNotPaused nonReentrant returns (uint256 inviteId) {
-        // Validate stake amount
-        if (stakeAmount < MIN_STAKE_AMOUNT) {
+        return _createInviteWithToken(stakeAmount, creator, betToken);
+    }
+
+    /**
+     * @notice Internal function to create a betting invite with a specific token
+     * @param stakeAmount Amount to stake in the specified token
+     * @param creator Address creating the invite
+     * @param betToken Token to use for betting (must be whitelisted)
+     * @return inviteId Unique identifier for the invite
+     */
+    function _createInviteWithToken(
+        uint256 stakeAmount,
+        address creator,
+        address betToken
+    ) internal returns (uint256 inviteId) {
+        // Validate token is whitelisted
+        if (!whitelistedTokens[betToken]) {
+            revert TokenNotWhitelisted();
+        }
+
+        // Validate stake amount meets minimum for this token
+        if (stakeAmount < tokenMinStakeAmounts[betToken]) {
             revert InvalidStakeAmount();
         }
 
         // Check user has sufficient balance
-        if (usdcToken.balanceOf(creator) < stakeAmount) {
+        if (IERC20(betToken).balanceOf(creator) < stakeAmount) {
             revert InsufficientBalance();
         }
 
@@ -135,6 +176,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         invite.id = inviteId;
         invite.creator = creator;
         invite.stakeAmount = stakeAmount;
+        invite.betToken = betToken;
         invite.createdAt = block.timestamp;
         invite.timeout = block.timestamp + INVITE_TIMEOUT;
         invite.betStatus = BetStatus.Open;
@@ -144,10 +186,23 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         playerInvites[creator].push(inviteId);
 
         // Escrow creator's stake
-        usdcToken.safeTransferFrom(creator, address(this), stakeAmount);
+        IERC20(betToken).safeTransferFrom(creator, address(this), stakeAmount);
 
-        emit InviteCreated(inviteId, creator, stakeAmount);
+        emit InviteCreated(inviteId, creator, stakeAmount, betToken);
         return inviteId;
+    }
+
+    /**
+     * @notice Create a betting invite with USDC (backward compatibility)
+     * @param stakeAmount Amount in USDC to stake
+     * @param creator Address creating the invite
+     * @return inviteId Unique identifier for the invite
+     */
+    function createInvite(
+        uint256 stakeAmount,
+        address creator
+    ) external whenNotPaused nonReentrant returns (uint256 inviteId) {
+        return _createInviteWithToken(stakeAmount, creator, address(usdcToken));
     }
 
     /**
@@ -167,8 +222,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
             revert NotExpired();
         }
 
-        // Check acceptor has sufficient balance
-        if (usdcToken.balanceOf(acceptor) < invite.stakeAmount) {
+        // Check acceptor has sufficient balance in the bet token
+        if (IERC20(invite.betToken).balanceOf(acceptor) < invite.stakeAmount) {
             revert InsufficientBalance();
         }
 
@@ -180,7 +235,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         playerInvites[acceptor].push(inviteId);
 
         // Escrow acceptor's stake
-        usdcToken.safeTransferFrom(acceptor, address(this), invite.stakeAmount);
+        IERC20(invite.betToken).safeTransferFrom(acceptor, address(this), invite.stakeAmount);
 
         emit InviteAccepted(inviteId, acceptor);
     }
@@ -251,9 +306,9 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         uint256 platformFee = (totalPool * PLATFORM_FEE_PERCENTAGE) / 100;
         uint256 winnerPayout = totalPool - platformFee;
 
-        // Distribute funds to winner
-        usdcToken.safeTransfer(treasury, platformFee);
-        usdcToken.safeTransfer(winner, winnerPayout);
+        // Distribute funds to winner using the bet token
+        IERC20(invite.betToken).safeTransfer(treasury, platformFee);
+        IERC20(invite.betToken).safeTransfer(winner, winnerPayout);
 
         emit GameResolved(gameId, winner, winnerPayout, platformFee);
     }
@@ -288,8 +343,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         // Update status
         invite.betStatus = BetStatus.Cancelled;
 
-        // Return stake to creator
-        usdcToken.safeTransfer(invite.creator, invite.stakeAmount);
+        // Return stake to creator in the bet token
+        IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
 
         emit InviteCancelled(inviteId, invite.creator, invite.stakeAmount);
     }
@@ -309,8 +364,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         // Update status
         invite.betStatus = BetStatus.Expired;
 
-        // Return stake to creator
-        usdcToken.safeTransfer(invite.creator, invite.stakeAmount);
+        // Return stake to creator in the bet token
+        IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
 
         emit InviteExpired(inviteId, invite.creator, invite.stakeAmount);
     }
@@ -438,8 +493,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         invite.fundsDistributed = true;
 
         // Return stakes to both players (no platform fee in emergency)
-        usdcToken.safeTransfer(invite.creator, invite.stakeAmount);
-        usdcToken.safeTransfer(invite.acceptor, invite.stakeAmount);
+        IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
+        IERC20(invite.betToken).safeTransfer(invite.acceptor, invite.stakeAmount);
 
         emit EmergencyRefund(inviteId, invite.creator, invite.acceptor, invite.stakeAmount);
     }
@@ -466,8 +521,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
             invite.fundsDistributed = true;
 
             // Return stakes
-            usdcToken.safeTransfer(invite.creator, invite.stakeAmount);
-            usdcToken.safeTransfer(invite.acceptor, invite.stakeAmount);
+            IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
+            IERC20(invite.betToken).safeTransfer(invite.acceptor, invite.stakeAmount);
 
             emit EmergencyRefund(inviteId, invite.creator, invite.acceptor, invite.stakeAmount);
         }
@@ -500,5 +555,87 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         }
 
         return activeInvites;
+    }
+
+    // ==================== Token Whitelisting Functions ====================
+
+    /**
+     * @notice Whitelist a new token for betting
+     * @param token Token address to whitelist
+     * @param minStakeAmount Minimum stake amount for this token
+     */
+    function whitelistToken(address token, uint256 minStakeAmount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (token == address(0)) revert InvalidTokenAddress();
+        if (whitelistedTokens[token]) revert TokenAlreadyWhitelisted();
+        if (minStakeAmount == 0) revert InvalidMinStakeAmount();
+
+        whitelistedTokens[token] = true;
+        tokenMinStakeAmounts[token] = minStakeAmount;
+        whitelistedTokensList.push(token);
+
+        emit TokenWhitelisted(token, minStakeAmount);
+    }
+
+    /**
+     * @notice Remove a token from whitelist
+     * @param token Token address to remove
+     */
+    function removeTokenFromWhitelist(address token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!whitelistedTokens[token]) revert TokenNotWhitelisted();
+
+        whitelistedTokens[token] = false;
+        tokenMinStakeAmounts[token] = 0;
+
+        // Remove from whitelistedTokensList array
+        for (uint256 i = 0; i < whitelistedTokensList.length; i++) {
+            if (whitelistedTokensList[i] == token) {
+                whitelistedTokensList[i] = whitelistedTokensList[whitelistedTokensList.length - 1];
+                whitelistedTokensList.pop();
+                break;
+            }
+        }
+
+        emit TokenRemovedFromWhitelist(token);
+    }
+
+    /**
+     * @notice Update minimum stake amount for a whitelisted token
+     * @param token Token address
+     * @param newMinStakeAmount New minimum stake amount
+     */
+    function updateTokenMinStake(address token, uint256 newMinStakeAmount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!whitelistedTokens[token]) revert TokenNotWhitelisted();
+        if (newMinStakeAmount == 0) revert InvalidMinStakeAmount();
+
+        uint256 oldMinStake = tokenMinStakeAmounts[token];
+        tokenMinStakeAmounts[token] = newMinStakeAmount;
+
+        emit TokenMinStakeUpdated(token, oldMinStake, newMinStakeAmount);
+    }
+
+    /**
+     * @notice Get all whitelisted tokens
+     * @return tokens Array of whitelisted token addresses
+     */
+    function getWhitelistedTokens() external view returns (address[] memory tokens) {
+        return whitelistedTokensList;
+    }
+
+    /**
+     * @notice Check if a token is whitelisted
+     * @param token Token address to check
+     * @return isWhitelisted True if token is whitelisted
+     */
+    function isTokenWhitelisted(address token) external view returns (bool isWhitelisted) {
+        return whitelistedTokens[token];
+    }
+
+    /**
+     * @notice Get minimum stake amount for a token
+     * @param token Token address
+     * @return minStakeAmount Minimum stake amount for the token
+     */
+    function getTokenMinStake(address token) external view returns (uint256 minStakeAmount) {
+        return tokenMinStakeAmounts[token];
     }
 }

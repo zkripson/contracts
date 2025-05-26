@@ -55,7 +55,7 @@ contract BattleshipBettingTest is Test {
     uint256 constant STANDARD_STAKE = 100 * 10 ** 6; // $100 USDC
 
     // Events
-    event InviteCreated(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
+    event InviteCreated(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount, address indexed token);
     event InviteAccepted(uint256 indexed inviteId, address indexed acceptor);
     event GameCreated(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
     event GameResolved(uint256 indexed gameId, address indexed winner, uint256 winnerPayout, uint256 platformFee);
@@ -111,7 +111,7 @@ contract BattleshipBettingTest is Test {
 
         vm.prank(PLAYER1);
         vm.expectEmit(true, true, false, true);
-        emit InviteCreated(1, PLAYER1, STANDARD_STAKE);
+        emit InviteCreated(1, PLAYER1, STANDARD_STAKE, address(usdc));
         uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Check invite details
