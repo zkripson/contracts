@@ -60,6 +60,7 @@ contract BattleshipBettingTest is Test {
     event GameCreated(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
     event GameResolved(uint256 indexed gameId, address indexed winner, uint256 winnerPayout, uint256 platformFee);
     event GameDraw(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
+    event EmergencyRefund(uint256 indexed inviteId, address indexed creator, address indexed acceptor, uint256 stakeAmount);
     event InviteCancelled(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
     event InviteExpired(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
@@ -629,5 +630,148 @@ contract BattleshipBettingTest is Test {
         assertEq(invites.length, 2);
         assertEq(invites[0], invite1);
         assertEq(invites[1], invite2);
+    }
+
+    // ==================== Emergency Functions Tests ====================
+
+    function testEmergencyRefundBet() public {
+        // Setup: Create and accept invite
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        betting.createGame(inviteId);
+
+        // Pause contract for emergency
+        vm.prank(ADMIN);
+        betting.pause();
+
+        uint256 p1BalanceBefore = usdc.balanceOf(PLAYER1);
+        uint256 p2BalanceBefore = usdc.balanceOf(PLAYER2);
+
+        // Emergency refund
+        vm.prank(ADMIN);
+        vm.expectEmit(true, true, true, true);
+        emit EmergencyRefund(inviteId, PLAYER1, PLAYER2, STANDARD_STAKE);
+        betting.emergencyRefundBet(inviteId);
+
+        // Check balances - both players get their stakes back
+        assertEq(usdc.balanceOf(PLAYER1), p1BalanceBefore + STANDARD_STAKE);
+        assertEq(usdc.balanceOf(PLAYER2), p2BalanceBefore + STANDARD_STAKE);
+        assertEq(usdc.balanceOf(address(betting)), 0);
+
+        // Check invite status
+        BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
+        assertEq(uint256(invite.betStatus), uint256(BattleshipBetting.BetStatus.Resolved));
+        assertTrue(invite.fundsDistributed);
+    }
+
+    function testEmergencyRefundMultipleBets() public {
+        // Create multiple escrowed bets
+        uint256[] memory inviteIds = new uint256[](3);
+        
+        // Invite 1
+        vm.prank(PLAYER1);
+        inviteIds[0] = betting.createInvite(STANDARD_STAKE, PLAYER1);
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteIds[0], PLAYER2);
+        vm.prank(BACKEND);
+        betting.createGame(inviteIds[0]);
+
+        // Invite 2  
+        vm.prank(PLAYER2);
+        inviteIds[1] = betting.createInvite(STANDARD_STAKE * 2, PLAYER2);
+        vm.prank(PLAYER1);
+        betting.acceptInvite(inviteIds[1], PLAYER1);
+        vm.prank(BACKEND);
+        betting.createGame(inviteIds[1]);
+
+        // Invite 3
+        vm.prank(PLAYER1);
+        inviteIds[2] = betting.createInvite(STANDARD_STAKE, PLAYER1);
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteIds[2], PLAYER2);
+        vm.prank(BACKEND);
+        betting.createGame(inviteIds[2]);
+
+        // Pause and refund all
+        vm.prank(ADMIN);
+        betting.pause();
+
+        uint256 p1BalanceBefore = usdc.balanceOf(PLAYER1);
+        uint256 p2BalanceBefore = usdc.balanceOf(PLAYER2);
+
+        vm.prank(ADMIN);
+        betting.emergencyRefundMultipleBets(inviteIds);
+
+        // Check balances
+        assertEq(usdc.balanceOf(PLAYER1), p1BalanceBefore + STANDARD_STAKE + STANDARD_STAKE * 2 + STANDARD_STAKE);
+        assertEq(usdc.balanceOf(PLAYER2), p2BalanceBefore + STANDARD_STAKE + STANDARD_STAKE * 2 + STANDARD_STAKE);
+        assertEq(usdc.balanceOf(address(betting)), 0);
+    }
+
+    function testGetActiveInvites() public {
+        // Create mix of invites in different states
+        vm.prank(PLAYER1);
+        uint256 invite1 = betting.createInvite(STANDARD_STAKE, PLAYER1); // Open
+
+        vm.prank(PLAYER2);
+        uint256 invite2 = betting.createInvite(STANDARD_STAKE, PLAYER2);
+        vm.prank(PLAYER1);
+        betting.acceptInvite(invite2, PLAYER1);
+        vm.prank(BACKEND);
+        betting.createGame(invite2); // Escrowed
+
+        vm.prank(PLAYER1);
+        uint256 invite3 = betting.createInvite(STANDARD_STAKE, PLAYER1);
+        vm.prank(PLAYER2);
+        betting.acceptInvite(invite3, PLAYER2);
+        vm.prank(BACKEND);
+        uint256 gameId3 = betting.createGame(invite3);
+        vm.prank(BACKEND);
+        betting.resolveGame(gameId3, PLAYER1); // Resolved
+
+        // Get active invites (should only include escrowed ones)
+        uint256[] memory activeInvites = betting.getActiveInvites();
+        assertEq(activeInvites.length, 1);
+        assertEq(activeInvites[0], invite2);
+    }
+
+    function test_RevertWhen_EmergencyRefundNotPaused() public {
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        betting.createGame(inviteId);
+
+        // Try emergency refund without pausing - should revert
+        vm.prank(ADMIN);
+        vm.expectRevert();
+        betting.emergencyRefundBet(inviteId);
+    }
+
+    function test_RevertWhen_EmergencyRefundNotAdmin() public {
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        betting.createGame(inviteId);
+
+        vm.prank(ADMIN);
+        betting.pause();
+
+        // Try emergency refund as non-admin - should revert
+        vm.prank(PLAYER1);
+        vm.expectRevert();
+        betting.emergencyRefundBet(inviteId);
     }
 }

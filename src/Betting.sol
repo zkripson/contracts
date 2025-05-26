@@ -75,6 +75,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     event InviteCancelled(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
     event InviteExpired(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount);
     event GameDraw(uint256 indexed gameId, uint256 indexed inviteId, address indexed playerA, address playerB);
+    event EmergencyRefund(uint256 indexed inviteId, address indexed creator, address indexed acceptor, uint256 stakeAmount);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
 
     // ==================== Errors ====================
@@ -417,5 +418,87 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         } else {
             IERC20(token).safeTransfer(msg.sender, amount);
         }
+    }
+
+    /**
+     * @notice Emergency function to return stakes to players for a specific betting invite
+     * @param inviteId ID of the betting invite to refund
+     * @dev Should only be used in emergency situations when normal resolution is impossible
+     */
+    function emergencyRefundBet(uint256 inviteId) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
+        BettingInvite storage invite = bettingInvites[inviteId];
+        
+        // Validate invite exists and has escrowed funds
+        require(invite.creator != address(0), "Invite not found");
+        require(invite.betStatus == BetStatus.Escrowed, "Bet not escrowed");
+        require(!invite.fundsDistributed, "Funds already distributed");
+
+        // Mark as resolved to prevent double withdrawal
+        invite.betStatus = BetStatus.Resolved;
+        invite.fundsDistributed = true;
+
+        // Return stakes to both players (no platform fee in emergency)
+        usdcToken.safeTransfer(invite.creator, invite.stakeAmount);
+        usdcToken.safeTransfer(invite.acceptor, invite.stakeAmount);
+
+        emit EmergencyRefund(inviteId, invite.creator, invite.acceptor, invite.stakeAmount);
+    }
+
+    /**
+     * @notice Emergency function to refund multiple betting invites at once
+     * @param inviteIds Array of invite IDs to refund
+     * @dev Batch version of emergencyRefundBet for efficiency
+     */
+    function emergencyRefundMultipleBets(uint256[] calldata inviteIds) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
+        for (uint256 i = 0; i < inviteIds.length; i++) {
+            uint256 inviteId = inviteIds[i];
+            BettingInvite storage invite = bettingInvites[inviteId];
+            
+            // Skip if already resolved or invalid
+            if (invite.creator == address(0) || 
+                invite.betStatus != BetStatus.Escrowed || 
+                invite.fundsDistributed) {
+                continue;
+            }
+
+            // Mark as resolved
+            invite.betStatus = BetStatus.Resolved;
+            invite.fundsDistributed = true;
+
+            // Return stakes
+            usdcToken.safeTransfer(invite.creator, invite.stakeAmount);
+            usdcToken.safeTransfer(invite.acceptor, invite.stakeAmount);
+
+            emit EmergencyRefund(inviteId, invite.creator, invite.acceptor, invite.stakeAmount);
+        }
+    }
+
+    /**
+     * @notice Get all active (escrowed) betting invite IDs for emergency refunds
+     * @return activeInvites Array of invite IDs that have escrowed funds
+     */
+    function getActiveInvites() external view returns (uint256[] memory activeInvites) {
+        // Count active invites first
+        uint256 activeCount = 0;
+        for (uint256 i = 1; i < nextInviteId; i++) {
+            BettingInvite memory invite = bettingInvites[i];
+            if (invite.betStatus == BetStatus.Escrowed && !invite.fundsDistributed) {
+                activeCount++;
+            }
+        }
+
+        // Create array of correct size
+        activeInvites = new uint256[](activeCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 1; i < nextInviteId; i++) {
+            BettingInvite memory invite = bettingInvites[i];
+            if (invite.betStatus == BetStatus.Escrowed && !invite.fundsDistributed) {
+                activeInvites[index] = i;
+                index++;
+            }
+        }
+
+        return activeInvites;
     }
 }
