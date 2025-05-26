@@ -6,7 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./factories/GameFactory.sol";
+import "./BattleshipGameImplementation.sol";
 
 /**
  * @title BattleshipBetting
@@ -51,6 +53,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         uint256 gameId; // Links to actual game once created
         bool fundsDistributed; // Prevents double distribution
         address betToken; // Token used for this bet
+        uint256 drawCount; // Number of draws in this betting session
     }
 
     // ==================== State Variables ====================
@@ -69,9 +72,9 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     mapping(address => uint256[]) public playerInvites; // Track player's invites
 
     uint256 private nextInviteId = 1;
-    uint256 public constant INVITE_TIMEOUT = 24 hours;
-    uint256 public constant PLATFORM_FEE_PERCENTAGE = 10; // 10% to treasury
-    uint256 public constant MIN_STAKE_AMOUNT = 1 * 10 ** 6; // $1 USDC (6 decimals)
+    uint256 public inviteTimeout = 24 hours;
+    uint256 public platformFeePercentage = 10; // 10% to treasury  
+    uint256 public constant MIN_STAKE_AMOUNT = 1 * 10 ** 6; // $1 USDC (6 decimals) - Keep as reference
 
     // ==================== Events ====================
     event InviteCreated(uint256 indexed inviteId, address indexed creator, uint256 stakeAmount, address indexed token);
@@ -86,6 +89,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     event TokenWhitelisted(address indexed token, uint256 minStakeAmount);
     event TokenRemovedFromWhitelist(address indexed token);
     event TokenMinStakeUpdated(address indexed token, uint256 oldMinStake, uint256 newMinStake);
+    event PlatformFeeUpdated(uint256 oldFee, uint256 newFee);
+    event InviteTimeoutUpdated(uint256 oldTimeout, uint256 newTimeout);
 
     // ==================== Errors ====================
     error InvalidStakeAmount();
@@ -102,6 +107,8 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     error TokenAlreadyWhitelisted();
     error InvalidTokenAddress();
     error InvalidMinStakeAmount();
+    error InvalidFeePercentage();
+    error InvalidTimeout();
 
     // ==================== Constructor ====================
     constructor(address _usdcToken, address _gameFactory, address _treasury, address _backend, address _admin) {
@@ -129,10 +136,13 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
 
     /**
      * @notice Create a betting invite with stake amount and token
+     * @dev Allows players to create betting invites with any whitelisted token
      * @param stakeAmount Amount to stake in the specified token
-     * @param creator Address creating the invite
+     * @param creator Address creating the invite  
      * @param betToken Token to use for betting (must be whitelisted)
      * @return inviteId Unique identifier for the invite
+     * @custom:security Validates token is whitelisted and creator has sufficient balance
+     * @custom:reentrancy Protected by nonReentrant modifier
      */
     function createInviteWithToken(
         uint256 stakeAmount,
@@ -178,7 +188,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         invite.stakeAmount = stakeAmount;
         invite.betToken = betToken;
         invite.createdAt = block.timestamp;
-        invite.timeout = block.timestamp + INVITE_TIMEOUT;
+        invite.timeout = block.timestamp + inviteTimeout;
         invite.betStatus = BetStatus.Open;
         invite.gameStatus = GameStatus.CREATED; // Starts with first player
 
@@ -194,9 +204,11 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
 
     /**
      * @notice Create a betting invite with USDC (backward compatibility)
-     * @param stakeAmount Amount in USDC to stake
+     * @dev Maintains backward compatibility for existing integrations using USDC
+     * @param stakeAmount Amount in USDC to stake (6 decimals)
      * @param creator Address creating the invite
      * @return inviteId Unique identifier for the invite
+     * @custom:compatibility This function defaults to USDC for backward compatibility
      */
     function createInvite(
         uint256 stakeAmount,
@@ -207,7 +219,11 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
 
     /**
      * @notice Accept a betting invite by matching the stake
+     * @dev Acceptor must have sufficient balance in the same token as the invite
      * @param inviteId ID of the invite to accept
+     * @param acceptor Address accepting the invite
+     * @custom:security Validates invite exists, is open, not expired, and acceptor has sufficient balance
+     * @custom:reentrancy Protected by nonReentrant modifier
      */
     function acceptInvite(uint256 inviteId, address acceptor) external whenNotPaused nonReentrant {
         BettingInvite storage invite = bettingInvites[inviteId];
@@ -303,7 +319,7 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         invite.fundsDistributed = true;
 
         uint256 totalPool = invite.stakeAmount * 2;
-        uint256 platformFee = (totalPool * PLATFORM_FEE_PERCENTAGE) / 100;
+        uint256 platformFee = Math.mulDiv(totalPool, platformFeePercentage, 100);
         uint256 winnerPayout = totalPool - platformFee;
 
         // Distribute funds to winner using the bet token
@@ -324,50 +340,69 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         BettingInvite storage invite = bettingInvites[inviteId];
         if (invite.betStatus != BetStatus.Escrowed) revert InvalidInviteStatus();
 
-        // Just emit event for tracking, but keep bet active
+        // Update persistent state - increment draw count
+        invite.drawCount++;
+
+        // Emit event for tracking, but keep bet active for replay
         emit GameDraw(gameId, inviteId, invite.creator, invite.acceptor);
     }
 
     /**
      * @notice Cancel an open invite and return stake to creator
+     * @dev Only the creator can cancel their own open invite
      * @param inviteId ID of the invite to cancel
+     * @param creator Address of the invite creator (must match stored creator)
+     * @custom:security Only invite creator can cancel, invite must be in Open status
+     * @custom:reentrancy Protected by nonReentrant modifier and CEI pattern
      */
     function cancelInvite(uint256 inviteId, address creator) external whenNotPaused nonReentrant {
         BettingInvite storage invite = bettingInvites[inviteId];
 
-        // Validate invite
+        // CHECKS - Validate invite
         if (invite.creator == address(0)) revert InviteNotFound();
         if (creator != invite.creator) revert UnauthorizedAction();
         if (invite.betStatus != BetStatus.Open) revert InvalidInviteStatus();
 
-        // Update status
+        // EFFECTS - Store values and update state before external calls
+        address betToken = invite.betToken;
+        uint256 stakeAmount = invite.stakeAmount;
+        address creatorAddress = invite.creator;
+        
         invite.betStatus = BetStatus.Cancelled;
 
-        // Return stake to creator in the bet token
-        IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
+        // INTERACTIONS - External calls last
+        IERC20(betToken).safeTransfer(creatorAddress, stakeAmount);
 
-        emit InviteCancelled(inviteId, invite.creator, invite.stakeAmount);
+        emit InviteCancelled(inviteId, creatorAddress, stakeAmount);
     }
 
     /**
      * @notice Handle expired invites (anyone can call)
+     * @dev Anyone can call this function to clean up expired invites and return funds
      * @param inviteId ID of the expired invite
+     * @custom:security Validates invite exists, is open, and has actually expired
+     * @custom:reentrancy Protected by nonReentrant modifier and CEI pattern
+     * @custom:accessibility Public function - anyone can call for gas efficiency
      */
     function handleExpiredInvite(uint256 inviteId) external whenNotPaused nonReentrant {
         BettingInvite storage invite = bettingInvites[inviteId];
 
-        // Validate invite
+        // CHECKS - Validate invite
         if (invite.creator == address(0)) revert InviteNotFound();
         if (invite.betStatus != BetStatus.Open) revert InvalidInviteStatus();
         if (block.timestamp <= invite.timeout) revert NotExpired();
 
-        // Update status
+        // EFFECTS - Store values and update state before external calls
+        address betToken = invite.betToken;
+        uint256 stakeAmount = invite.stakeAmount;
+        address creatorAddress = invite.creator;
+        
         invite.betStatus = BetStatus.Expired;
 
-        // Return stake to creator in the bet token
-        IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
+        // INTERACTIONS - External calls last
+        IERC20(betToken).safeTransfer(creatorAddress, stakeAmount);
 
-        emit InviteExpired(inviteId, invite.creator, invite.stakeAmount);
+        emit InviteExpired(inviteId, creatorAddress, stakeAmount);
     }
 
     // ==================== View Functions ====================
@@ -405,17 +440,19 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
      * @return inviteId Associated invite ID
      * @return totalPool Total betting pool
      * @return resolved Whether betting is resolved
+     * @return drawCount Number of draws in this betting session
      */
     function getGameBettingInfo(
         uint256 gameId
-    ) external view returns (uint256 inviteId, uint256 totalPool, bool resolved) {
+    ) external view returns (uint256 inviteId, uint256 totalPool, bool resolved, uint256 drawCount) {
         inviteId = gameIdToInviteId[gameId];
         if (inviteId > 0) {
             BettingInvite memory invite = bettingInvites[inviteId];
             totalPool = invite.stakeAmount * 2;
             resolved = invite.betStatus == BetStatus.Resolved;
+            drawCount = invite.drawCount;
         }
-        return (inviteId, totalPool, resolved);
+        return (inviteId, totalPool, resolved, drawCount);
     }
 
     /**
@@ -426,6 +463,15 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     function isInviteExpired(uint256 inviteId) external view returns (bool expired) {
         BettingInvite memory invite = bettingInvites[inviteId];
         return block.timestamp > invite.timeout && invite.betStatus == BetStatus.Open;
+    }
+
+    /**
+     * @notice Get number of draws for a betting invite
+     * @param inviteId ID of the invite
+     * @return drawCount Number of draws in this betting session
+     */
+    function getInviteDrawCount(uint256 inviteId) external view returns (uint256 drawCount) {
+        return bettingInvites[inviteId].drawCount;
     }
 
     // ==================== Admin Functions ====================
@@ -483,20 +529,42 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     function emergencyRefundBet(uint256 inviteId) external onlyRole(DEFAULT_ADMIN_ROLE) whenPaused {
         BettingInvite storage invite = bettingInvites[inviteId];
         
-        // Validate invite exists and has escrowed funds
+        // CHECKS - Validate invite exists and has escrowed funds
         require(invite.creator != address(0), "Invite not found");
         require(invite.betStatus == BetStatus.Escrowed, "Bet not escrowed");
         require(!invite.fundsDistributed, "Funds already distributed");
 
-        // Mark as resolved to prevent double withdrawal
+        // Additional validation: Check if any associated games were resolved outside the betting system
+        uint256[] memory gameIds = inviteGameIds[inviteId];
+        for (uint256 i = 0; i < gameIds.length; i++) {
+            address gameAddress = gameFactory.games(gameIds[i]);
+            if (gameAddress != address(0)) {
+                try BattleshipGameImplementation(gameAddress).state() returns (BattleshipGameImplementation.GameState gameState) {
+                    require(
+                        gameState != BattleshipGameImplementation.GameState.Completed,
+                        "Game already completed - use normal resolution"
+                    );
+                } catch {
+                    // If we can't check the game state, proceed with emergency refund
+                    // This could happen if the game contract is broken
+                }
+            }
+        }
+
+        // EFFECTS - Store values and update state before external calls
+        address betToken = invite.betToken;
+        uint256 stakeAmount = invite.stakeAmount;
+        address creatorAddress = invite.creator;
+        address acceptorAddress = invite.acceptor;
+        
         invite.betStatus = BetStatus.Resolved;
         invite.fundsDistributed = true;
 
-        // Return stakes to both players (no platform fee in emergency)
-        IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
-        IERC20(invite.betToken).safeTransfer(invite.acceptor, invite.stakeAmount);
+        // INTERACTIONS - External calls last
+        IERC20(betToken).safeTransfer(creatorAddress, stakeAmount);
+        IERC20(betToken).safeTransfer(acceptorAddress, stakeAmount);
 
-        emit EmergencyRefund(inviteId, invite.creator, invite.acceptor, invite.stakeAmount);
+        emit EmergencyRefund(inviteId, creatorAddress, acceptorAddress, stakeAmount);
     }
 
     /**
@@ -509,52 +577,116 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
             uint256 inviteId = inviteIds[i];
             BettingInvite storage invite = bettingInvites[inviteId];
             
-            // Skip if already resolved or invalid
+            // CHECKS - Skip if already resolved or invalid
             if (invite.creator == address(0) || 
                 invite.betStatus != BetStatus.Escrowed || 
                 invite.fundsDistributed) {
                 continue;
             }
 
-            // Mark as resolved
+            // EFFECTS - Store values and update state before external calls
+            address betToken = invite.betToken;
+            uint256 stakeAmount = invite.stakeAmount;
+            address creatorAddress = invite.creator;
+            address acceptorAddress = invite.acceptor;
+            
             invite.betStatus = BetStatus.Resolved;
             invite.fundsDistributed = true;
 
-            // Return stakes
-            IERC20(invite.betToken).safeTransfer(invite.creator, invite.stakeAmount);
-            IERC20(invite.betToken).safeTransfer(invite.acceptor, invite.stakeAmount);
+            // INTERACTIONS - External calls
+            IERC20(betToken).safeTransfer(creatorAddress, stakeAmount);
+            IERC20(betToken).safeTransfer(acceptorAddress, stakeAmount);
 
-            emit EmergencyRefund(inviteId, invite.creator, invite.acceptor, invite.stakeAmount);
+            emit EmergencyRefund(inviteId, creatorAddress, acceptorAddress, stakeAmount);
         }
     }
 
     /**
-     * @notice Get all active (escrowed) betting invite IDs for emergency refunds
+     * @notice Get active (escrowed) betting invite IDs with pagination
+     * @param offset Starting index for pagination
+     * @param limit Maximum number of invites to return (max 100)
      * @return activeInvites Array of invite IDs that have escrowed funds
+     * @return total Total number of active invites
+     * @return hasMore Whether there are more invites beyond this page
+     */
+    function getActiveInvites(uint256 offset, uint256 limit) 
+        external view returns (uint256[] memory activeInvites, uint256 total, bool hasMore) {
+        
+        require(limit > 0 && limit <= 100, "Invalid limit"); // Max 100 per call
+        
+        // First pass: count total active invites
+        uint256 totalActive = 0;
+        for (uint256 i = 1; i < nextInviteId; i++) {
+            BettingInvite memory invite = bettingInvites[i];
+            if (invite.betStatus == BetStatus.Escrowed && !invite.fundsDistributed) {
+                totalActive++;
+            }
+        }
+        
+        // Calculate result size
+        uint256 startIndex = offset;
+        uint256 endIndex = offset + limit;
+        uint256 resultSize = 0;
+        
+        if (startIndex < totalActive) {
+            resultSize = endIndex > totalActive ? totalActive - startIndex : limit;
+        }
+        
+        // Create result array
+        activeInvites = new uint256[](resultSize);
+        uint256 activeIndex = 0;
+        uint256 resultIndex = 0;
+        
+        // Second pass: collect paginated results
+        for (uint256 i = 1; i < nextInviteId && resultIndex < resultSize; i++) {
+            BettingInvite memory invite = bettingInvites[i];
+            if (invite.betStatus == BetStatus.Escrowed && !invite.fundsDistributed) {
+                if (activeIndex >= startIndex) {
+                    activeInvites[resultIndex] = i;
+                    resultIndex++;
+                }
+                activeIndex++;
+            }
+        }
+        
+        return (activeInvites, totalActive, endIndex < totalActive);
+    }
+
+    /**
+     * @notice Get all active (escrowed) betting invite IDs for emergency refunds (backward compatibility)
+     * @return activeInvites Array of invite IDs that have escrowed funds (limited to first 100)
      */
     function getActiveInvites() external view returns (uint256[] memory activeInvites) {
-        // Count active invites first
-        uint256 activeCount = 0;
-        for (uint256 i = 1; i < nextInviteId; i++) {
-            BettingInvite memory invite = bettingInvites[i];
-            if (invite.betStatus == BetStatus.Escrowed && !invite.fundsDistributed) {
-                activeCount++;
-            }
-        }
-
-        // Create array of correct size
-        activeInvites = new uint256[](activeCount);
-        uint256 index = 0;
-        
-        for (uint256 i = 1; i < nextInviteId; i++) {
-            BettingInvite memory invite = bettingInvites[i];
-            if (invite.betStatus == BetStatus.Escrowed && !invite.fundsDistributed) {
-                activeInvites[index] = i;
-                index++;
-            }
-        }
-
+        (activeInvites, , ) = this.getActiveInvites(0, 100);
         return activeInvites;
+    }
+
+    // ==================== Configuration Functions ====================
+
+    /**
+     * @notice Update platform fee percentage
+     * @param newFeePercentage New fee percentage (max 50%)
+     */
+    function setPlatformFee(uint256 newFeePercentage) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newFeePercentage > 50) revert InvalidFeePercentage(); // Max 50%
+        
+        uint256 oldFee = platformFeePercentage;
+        platformFeePercentage = newFeePercentage;
+        
+        emit PlatformFeeUpdated(oldFee, newFeePercentage);
+    }
+
+    /**
+     * @notice Update invite timeout duration
+     * @param newTimeout New timeout duration in seconds (min 1 hour, max 7 days)
+     */
+    function setInviteTimeout(uint256 newTimeout) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newTimeout < 1 hours || newTimeout > 7 days) revert InvalidTimeout();
+        
+        uint256 oldTimeout = inviteTimeout;
+        inviteTimeout = newTimeout;
+        
+        emit InviteTimeoutUpdated(oldTimeout, newTimeout);
     }
 
     // ==================== Token Whitelisting Functions ====================
@@ -568,6 +700,27 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         if (token == address(0)) revert InvalidTokenAddress();
         if (whitelistedTokens[token]) revert TokenAlreadyWhitelisted();
         if (minStakeAmount == 0) revert InvalidMinStakeAmount();
+
+        // Validate token is a proper ERC20
+        try IERC20(token).totalSupply() returns (uint256 supply) {
+            require(supply > 0, "Token has zero supply");
+        } catch {
+            revert("Invalid ERC20 token");
+        }
+        
+        // Test basic token operations
+        try IERC20(token).balanceOf(address(this)) returns (uint256) {
+            // Token supports balanceOf
+        } catch {
+            revert("Token does not support balanceOf");
+        }
+
+        // Test allowance function
+        try IERC20(token).allowance(address(this), address(this)) returns (uint256) {
+            // Token supports allowance
+        } catch {
+            revert("Token does not support allowance");
+        }
 
         whitelistedTokens[token] = true;
         tokenMinStakeAmounts[token] = minStakeAmount;
@@ -586,10 +739,14 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
         whitelistedTokens[token] = false;
         tokenMinStakeAmounts[token] = 0;
 
-        // Remove from whitelistedTokensList array
-        for (uint256 i = 0; i < whitelistedTokensList.length; i++) {
+        // Remove from whitelistedTokensList array - Safe version
+        uint256 length = whitelistedTokensList.length;
+        for (uint256 i = 0; i < length; i++) {
             if (whitelistedTokensList[i] == token) {
-                whitelistedTokensList[i] = whitelistedTokensList[whitelistedTokensList.length - 1];
+                // Only swap if not the last element
+                if (i != length - 1) {
+                    whitelistedTokensList[i] = whitelistedTokensList[length - 1];
+                }
                 whitelistedTokensList.pop();
                 break;
             }

@@ -46,14 +46,29 @@ contract MockDAI is ERC20 {
     }
 }
 
+// Mock Game Contract
+contract MockGame {
+    enum GameState { WaitingForPlayers, Playing, Completed, Cancelled }
+    GameState public state;
+    
+    constructor() {
+        state = GameState.Playing; // Default to playing state for emergency refund tests
+    }
+    
+    function setState(GameState _state) external {
+        state = _state;
+    }
+}
+
 // Mock GameFactory to handle createGame calls
 contract MockGameFactory {
     uint256 private nextGameId = 1;
-    mapping(uint256 => bool) public games;
+    mapping(uint256 => address) public games;
 
     function createGame(address, address) external returns (uint256) {
         uint256 gameId = nextGameId++;
-        games[gameId] = true;
+        // Deploy a new mock game contract
+        games[gameId] = address(new MockGame());
         return gameId;
     }
 }
@@ -330,7 +345,7 @@ contract BattleshipBettingMultiTokenTest is Test {
 
         // Check payouts in USDT
         uint256 totalPool = STANDARD_STAKE_USDT * 2;
-        uint256 platformFee = (totalPool * betting.PLATFORM_FEE_PERCENTAGE()) / 100;
+        uint256 platformFee = (totalPool * betting.platformFeePercentage()) / 100;
         uint256 winnerPayout = totalPool - platformFee;
 
         assertEq(usdt.balanceOf(PLAYER1), player1BalanceBefore + winnerPayout);
@@ -364,7 +379,7 @@ contract BattleshipBettingMultiTokenTest is Test {
 
         // Check payouts in DAI
         uint256 totalPool = STANDARD_STAKE_DAI * 2;
-        uint256 platformFee = (totalPool * betting.PLATFORM_FEE_PERCENTAGE()) / 100;
+        uint256 platformFee = (totalPool * betting.platformFeePercentage()) / 100;
         uint256 winnerPayout = totalPool - platformFee;
 
         assertEq(dai.balanceOf(PLAYER2), player2BalanceBefore + winnerPayout);
@@ -474,11 +489,17 @@ contract BattleshipBettingMultiTokenTest is Test {
     // ==================== Edge Cases and Security Tests ====================
 
     function testWhitelistMaxTokens() public {
-        // Test whitelisting many tokens
+        // Test whitelisting many tokens by deploying actual mock ERC20 contracts
+        address[] memory newTokens = new address[](10);
+        
         for (uint256 i = 0; i < 10; i++) {
-            address mockToken = address(uint160(0x1000 + i));
+            // Deploy a new mock ERC20 for each test
+            MockUSDC mockToken = new MockUSDC();
+            mockToken.mint(address(this), 1000 * 10 ** 6); // Give it some supply
+            newTokens[i] = address(mockToken);
+            
             vm.prank(ADMIN);
-            betting.whitelistToken(mockToken, 1 * 10 ** 18);
+            betting.whitelistToken(newTokens[i], 1 * 10 ** 6);
         }
 
         address[] memory tokens = betting.getWhitelistedTokens();

@@ -22,14 +22,29 @@ contract MockUSDC is ERC20 {
     }
 }
 
+// Mock Game Contract
+contract MockGame {
+    enum GameState { WaitingForPlayers, Playing, Completed, Cancelled }
+    GameState public state;
+    
+    constructor() {
+        state = GameState.Playing; // Default to playing state for emergency refund tests
+    }
+    
+    function setState(GameState _state) external {
+        state = _state;
+    }
+}
+
 // Mock GameFactory to handle createGame calls
 contract MockGameFactory {
     uint256 private nextGameId = 1;
-    mapping(uint256 => bool) public games;
+    mapping(uint256 => address) public games;
 
     function createGame(address, address) external returns (uint256) {
         uint256 gameId = nextGameId++;
-        games[gameId] = true;
+        // Deploy a new mock game contract
+        games[gameId] = address(new MockGame());
         return gameId;
     }
 }
@@ -96,7 +111,7 @@ contract BattleshipBettingTest is Test {
         assertEq(address(betting.gameFactory()), address(mockFactory));
         assertEq(betting.treasury(), TREASURY);
         assertEq(betting.MIN_STAKE_AMOUNT(), MIN_STAKE);
-        assertEq(betting.PLATFORM_FEE_PERCENTAGE(), 10);
+        assertEq(betting.platformFeePercentage(), 10);
 
         // Check roles
         assertTrue(betting.hasRole(betting.DEFAULT_ADMIN_ROLE(), ADMIN));
@@ -224,7 +239,7 @@ contract BattleshipBettingTest is Test {
         uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Time travel past timeout
-        vm.warp(block.timestamp + betting.INVITE_TIMEOUT() + 1);
+        vm.warp(block.timestamp + betting.inviteTimeout() + 1);
 
         vm.prank(PLAYER2);
         vm.expectRevert(BattleshipBetting.NotExpired.selector);
@@ -310,7 +325,7 @@ contract BattleshipBettingTest is Test {
         uint256 gameId = betting.createGame(inviteId);
 
         uint256 totalPool = STANDARD_STAKE * 2;
-        uint256 platformFee = (totalPool * betting.PLATFORM_FEE_PERCENTAGE()) / 100;
+        uint256 platformFee = (totalPool * betting.platformFeePercentage()) / 100;
         uint256 winnerPayout = totalPool - platformFee;
 
         uint256 treasuryBalanceBefore = usdc.balanceOf(TREASURY);
@@ -476,7 +491,7 @@ contract BattleshipBettingTest is Test {
         uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Time travel past timeout
-        vm.warp(block.timestamp + betting.INVITE_TIMEOUT() + 1);
+        vm.warp(block.timestamp + betting.inviteTimeout() + 1);
 
         uint256 balanceBefore = usdc.balanceOf(PLAYER1);
 
@@ -516,7 +531,7 @@ contract BattleshipBettingTest is Test {
         vm.prank(BACKEND);
         uint256 gameId = betting.createGame(inviteId);
 
-        (uint256 returnedInviteId, uint256 totalPool, bool resolved) = betting.getGameBettingInfo(gameId);
+        (uint256 returnedInviteId, uint256 totalPool, bool resolved, uint256 drawCount) = betting.getGameBettingInfo(gameId);
 
         assertEq(returnedInviteId, inviteId);
         assertEq(totalPool, STANDARD_STAKE * 2);
@@ -526,7 +541,7 @@ contract BattleshipBettingTest is Test {
         vm.prank(BACKEND);
         betting.resolveGame(gameId, PLAYER1);
 
-        (, , bool resolvedAfter) = betting.getGameBettingInfo(gameId);
+        (, , bool resolvedAfter, ) = betting.getGameBettingInfo(gameId);
         assertTrue(resolvedAfter);
     }
 
@@ -537,7 +552,7 @@ contract BattleshipBettingTest is Test {
         assertFalse(betting.isInviteExpired(inviteId));
 
         // Time travel
-        vm.warp(block.timestamp + betting.INVITE_TIMEOUT() + 1);
+        vm.warp(block.timestamp + betting.inviteTimeout() + 1);
 
         assertTrue(betting.isInviteExpired(inviteId));
     }

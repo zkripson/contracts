@@ -153,7 +153,7 @@ contract BettingIntegrationTest is Test {
 
         // Verify final balances
         uint256 totalPool = STANDARD_STAKE * 2;
-        uint256 platformFee = (totalPool * betting.PLATFORM_FEE_PERCENTAGE()) / 100;
+        uint256 platformFee = (totalPool * betting.platformFeePercentage()) / 100;
         uint256 winnerPayout = totalPool - platformFee;
 
         assertEq(usdc.balanceOf(PLAYER1), player1InitialBalance - STANDARD_STAKE + winnerPayout);
@@ -252,7 +252,7 @@ contract BettingIntegrationTest is Test {
         uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
 
         // Time travel past expiration
-        vm.warp(block.timestamp + betting.INVITE_TIMEOUT() + 1);
+        vm.warp(block.timestamp + betting.inviteTimeout() + 1);
 
         // Anyone can trigger the refund
         vm.prank(address(0x999)); // Random address
@@ -281,7 +281,7 @@ contract BettingIntegrationTest is Test {
         uint256 gameId = betting.createGame(inviteId);
 
         // Get betting info
-        (uint256 returnedInviteId, uint256 totalPool, bool resolved) = betting.getGameBettingInfo(gameId);
+        (uint256 returnedInviteId, uint256 totalPool, bool resolved, uint256 drawCount) = betting.getGameBettingInfo(gameId);
 
         assertEq(returnedInviteId, inviteId);
         assertEq(totalPool, STANDARD_STAKE * 2);
@@ -291,7 +291,7 @@ contract BettingIntegrationTest is Test {
         vm.prank(BACKEND);
         betting.resolveGame(gameId, PLAYER1);
 
-        (, , bool resolvedAfter) = betting.getGameBettingInfo(gameId);
+        (, , bool resolvedAfter, ) = betting.getGameBettingInfo(gameId);
         assertTrue(resolvedAfter);
     }
 }
