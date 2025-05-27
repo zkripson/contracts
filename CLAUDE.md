@@ -102,9 +102,9 @@ For working with backend-driven ZK Battleship:
 
 ## Deployment Process
 
-1. Update the `.env` file with Base Sepolia settings
+1. Update the `.env` file with Base Mainnet settings
 2. Run the deployment script: `./scripts/deploy.sh`
-3. Verify all contracts on Base Sepolia explorer
+3. Verify all contracts on Base Mainnet explorer
 4. Update configuration with new contract addresses
 5. Test deployment with backend integration
 
@@ -117,11 +117,11 @@ forge build --optimize
 # Run tests
 forge test
 
-# Deploy to Base Sepolia
+# Deploy to Base Mainnet
 ./scripts/deploy.sh
 
 # Upgrade implementation (after deploying new implementation)
-forge script scripts/upgrade/Upgrade.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast
+forge script scripts/upgrade/Upgrade.s.sol --rpc-url $BASE_MAINNET_RPC_URL --broadcast --account deployKey
 ```
 
 ## Important Files

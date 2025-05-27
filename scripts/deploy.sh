@@ -24,15 +24,25 @@ echo -e "${YELLOW}Loading environment variables...${NC}"
 source .env
 
 # Ensure required variables are set
-if [ -z "$BASE_SEPOLIA_RPC_URL" ]; then
-    echo -e "${RED}Error: BASE_SEPOLIA_RPC_URL not set in .env file${NC}"
+if [ -z "$BASE_MAINNET_RPC_URL" ]; then
+    echo -e "${RED}Error: BASE_MAINNET_RPC_URL not set in .env file${NC}"
     exit 1
 fi
 
-if [ -z "$PRIVATE_KEY" ]; then
-    echo -e "${RED}Error: PRIVATE_KEY not set in .env file${NC}"
+# Check if Cast keystore is available
+echo -e "${YELLOW}Checking Cast keystore...${NC}"
+KEYSTORE_NAME="deployKey"
+DEPLOYER_ADDRESS="0xd4dfadd36a07ee599be13c9ac0ba6156cf3c7c41"
+
+# Verify the keystore exists
+if ! cast wallet list | grep -q "$KEYSTORE_NAME"; then
+    echo -e "${RED}Error: Cast keystore '$KEYSTORE_NAME' not found${NC}"
+    echo "Please ensure your keystore is properly set up with: cast wallet import $KEYSTORE_NAME --interactive"
     exit 1
 fi
+
+echo -e "${GREEN}Found Cast keystore: $KEYSTORE_NAME${NC}"
+echo -e "${GREEN}Deployer address: $DEPLOYER_ADDRESS${NC}"
 
 # Install dependencies
 echo -e "${YELLOW}Installing Forge dependencies...${NC}"
@@ -47,19 +57,22 @@ echo -e "${YELLOW}Building contracts...${NC}"
 forge build --optimize
 
 # Confirm deployment
-echo -e "${YELLOW}Ready to deploy ZK Battleship contracts to Base Sepolia${NC}"
-echo -e "RPC URL: ${BASE_SEPOLIA_RPC_URL}"
+echo -e "${YELLOW}Ready to deploy ZK Battleship contracts to Base Mainnet${NC}"
+echo -e "RPC URL: ${BASE_MAINNET_RPC_URL}"
 
 read -p "Press Enter to begin deployment or Ctrl+C to cancel..."
 
 # Deploy contracts
 echo -e "${YELLOW}Deploying contracts...${NC}"
 
-DEPLOY_COMMAND="forge script scripts/deploy/Deploy.s.sol:DeployZKBattleship --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast -vvvv --private-key $PRIVATE_KEY"
+# Set deployer address as environment variable for the script
+export DEPLOYER_ADDRESS="$DEPLOYER_ADDRESS"
+
+DEPLOY_COMMAND="forge script scripts/deploy/Deploy.s.sol:DeployZKBattleship --rpc-url $BASE_MAINNET_RPC_URL --broadcast -vvvv --account $KEYSTORE_NAME"
 
 # Add verification if BASE_API_KEY is provided
-if [ ! -z "$BASE_SEPOLIA_API_KEY" ]; then
-    DEPLOY_COMMAND="$DEPLOY_COMMAND --verify --etherscan-api-key $BASE_SEPOLIA_API_KEY"
+if [ ! -z "$BASE_MAINNET_API_KEY" ]; then
+    DEPLOY_COMMAND="$DEPLOY_COMMAND --verify --etherscan-api-key $BASE_MAINNET_API_KEY"
 fi
 
 # Execute deployment
@@ -119,7 +132,7 @@ else
         BETTING_ADDRESS=$(grep -o '"contractAddress": "[^"]*"' "$LATEST_BROADCAST" | grep -A 3 "BattleshipBetting" | head -n 1 | cut -d'"' -f4)
         
         # Try to extract backend address from environment
-        BACKEND_ADDRESS=${BACKEND_ADDRESS:-$DEPLOYER}
+        BACKEND_ADDRESS=${BACKEND_ADDRESS:-$DEPLOYER_ADDRESS}
         
         echo -e "${GREEN}Extracted addresses from broadcast logs${NC}"
     else
@@ -159,11 +172,11 @@ CURRENT_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 cat > temp_config.json << EOF
 {
   "environments": {
-    "base-sepolia": {
-      "network": "Base Sepolia Testnet",
-      "rpc": "$BASE_SEPOLIA_RPC_URL",
-      "ws": "$BASE_SEPOLIA_WS_URL",
-      "explorer": "https://sepolia.basescan.org",
+    "base-mainnet": {
+      "network": "Base Mainnet",
+      "rpc": "$BASE_MAINNET_RPC_URL",
+      "ws": "$BASE_MAINNET_WS_URL",
+      "explorer": "https://basescan.org",
       "contracts": {
         "shipToken": "$SHIP_TOKEN",
         "gameImplementation": "$GAME_IMPLEMENTATION",
@@ -211,7 +224,7 @@ echo -e "${GREEN}Deployment completed successfully!${NC}"
 echo -e "Next steps:"
 echo -e "1. Configure your backend to use these contract addresses"
 echo -e "2. Run tests against Base Sepolia testnet"
-echo -e "3. Monitor transactions on Base Sepolia explorer: https://sepolia.basescan.org"
+echo -e "3. Monitor transactions on Base Mainnet explorer: https://basescan.org"
 if [ ! -z "$BETTING_ADDRESS" ] && [ "$BETTING_ADDRESS" != "null" ]; then
     echo -e "4. Ensure backend has proper roles for betting operations"
     echo -e "5. Verify USDC token address and treasury are configured correctly"

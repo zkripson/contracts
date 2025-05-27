@@ -246,9 +246,12 @@ chmod +x scripts/pre-build.sh scripts/deploy.sh
 2. Create a `.env` file with your deployment settings:
 
 ```
-PRIVATE_KEY=your_private_key
-BASE_SEPOLIA_RPC_URL=your_rpc_url
-BASE_SEPOLIA_API_KEY=your_api_key_for_verification
+# Use Cast keystore instead of private key
+BASE_MAINNET_RPC_URL=your_rpc_url
+BASE_MAINNET_API_KEY=your_api_key_for_verification
+ADMIN_ADDRESS=your_admin_address
+TREASURY_ADDRESS=your_treasury_address
+USDC_ADDRESS=0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
 ```
 
 ### Building
@@ -281,7 +284,7 @@ To deploy all contracts including the betting system:
 
 ```bash
 # First, set these in your .env file
-USDC_ADDRESS=0x... # USDC token address on Base Sepolia
+USDC_ADDRESS=0x833589fcd6edb6e08f4c7c32d4f71b54bda02913 # USDC token address on Base Mainnet
 TREASURY_ADDRESS=0x... # Treasury address for platform fees
 ADMIN_ADDRESS=0x... # Admin address for contract management
 BACKEND_ADDRESS=0x... # Backend service address
@@ -297,7 +300,7 @@ The deployment script will:
 4. Configure all necessary permissions and roles
 5. Update your .env file with deployed addresses
 6. Generate deployment-config.json with all contract addresses
-7. Verify contracts on Base Sepolia explorer (if API key is provided)
+7. Verify contracts on Base Mainnet explorer (if API key is provided)
 
 
 6. Run tests:
@@ -305,18 +308,18 @@ The deployment script will:
    forge test
    ```
 
-## Deploying to Base Sepolia
+## Deploying to Base Mainnet
 
-1. Ensure your `.env` file is properly configured with your private key and the Base Sepolia RPC URL.
+1. Set up your Cast keystore and ensure your `.env` file is properly configured with the Base Mainnet RPC URL.
 
 2. Run the deployment script:
    ```bash
-   forge script scripts/deploy/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --private-key $PRIVATE_KEY
+   ./scripts/deploy.sh
    ```
    
-3. To verify contracts on Base Sepolia explorer:
+3. Manual deployment with verification:
    ```bash
-   forge script scripts/deploy/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --verify --etherscan-api-key $BASE_SEPOLIA_API_KEY --private-key $PRIVATE_KEY
+   forge script scripts/deploy/Deploy.s.sol --rpc-url $BASE_MAINNET_RPC_URL --broadcast --verify --etherscan-api-key $BASE_MAINNET_API_KEY --account deployKey
    ```
 
 ## Base Network Details
