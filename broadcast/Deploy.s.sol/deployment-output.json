@@ -1,13 +1,13 @@
 {
   "network": "8453",
   "network_name": "Base Mainnet",
-  "timestamp": "1748421265",
+  "timestamp": "1748454531",
   "contracts": {
-    "BattleshipGameImplementation": "0x6291BA16b085768a332C330b5fBA044f5dA86012",
-    "BattleshipStatistics": "0xc675457aF4387739672E8C087191191961Ae4A4B",
-    "GameFactoryWithStats": "0xD1a2812933b9cBCEcd024c0F5F3b1B0D03817f45",
-    "BattleshipBetting": "0x68e19F765E20bAEDfc06e431ADdD7f7d92945324",
-    "BattleshipPoints": "0x502714828F254Fd890Ec78424A50cF257Ee5EA84"
+    "BattleshipGameImplementation": "0xadba7A1196fE638D7aA9313F85e69cE20c2B1EF7",
+    "BattleshipStatistics": "0xd439C6Fb2f3Beb4d0C01b2D047F2a3b33d72E31f",
+    "GameFactoryWithStats": "0xB31729842D2a1448CABfBeaB5554173EE2236033",
+    "BattleshipBetting": "0x2b859551fBC83219abf2C4965333013DC972D228",
+    "BattleshipPoints": "0x9C358786b11Be08961ef00F3469eE5A66eB35DcE"
   },
   "config": {
     "backend": "0xD273cde1aEf147c7f3f696b2b5C92f68d337a75A"

@@ -80,7 +80,7 @@ read -p "Press Enter to begin configuration or Ctrl+C to cancel..."
 echo -e "${YELLOW}Configuring contracts with admin privileges...${NC}"
 
 # Create configuration script and execute it
-CONFIG_COMMAND="forge script scripts/configure/Configure.s.sol:ConfigureContracts --rpc-url $BASE_MAINNET_RPC_URL --broadcast -vvvv --account $ADMIN_KEYSTORE"
+CONFIG_COMMAND="forge script scripts/configure/Configure.s.sol:ConfigureContracts --rpc-url $BASE_MAINNET_RPC_URL --broadcast -vvvv --account $ADMIN_KEYSTORE --sender $ADMIN_ADDRESS"
 
 # Execute configuration
 echo $CONFIG_COMMAND

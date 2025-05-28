@@ -37,6 +37,7 @@ exclude_paths = [
 
 [rpc_endpoints]
 base_mainnet = "${BASE_MAINNET_RPC_URL}"
+ethereum = "${ETHEREUM_RPC_URL}"
 
 [etherscan]
 base_mainnet = { key = "${BASE_MAINNET_API_KEY}", url = "https://api.basescan.org/api" }

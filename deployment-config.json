@@ -2,23 +2,21 @@
   "environments": {
     "base-mainnet": {
       "network": "Base Mainnet",
-      "rpc": "https://small-palpable-darkness.base-mainnet.quiknode.pro/f1f7c626b88d4bff727d2331638c6ceafd36e9b4/",
-      "ws": "wss://small-palpable-darkness.base-mainnet.quiknode.pro/f1f7c626b88d4bff727d2331638c6ceafd36e9b4/",
       "explorer": "https://basescan.org",
       "contracts": {
         "shipToken": "null",
-        "gameImplementation": "0x6291BA16b085768a332C330b5fBA044f5dA86012",
-        "gameStatistics": "0xc675457aF4387739672E8C087191191961Ae4A4B",
-        "gameFactory": "0xD1a2812933b9cBCEcd024c0F5F3b1B0D03817f45",
-        battleshipBetting: 0x68e19F765E20bAEDfc06e431ADdD7f7d92945324
+        "gameImplementation": "0xadba7A1196fE638D7aA9313F85e69cE20c2B1EF7",
+        "gameStatistics": "0xd439C6Fb2f3Beb4d0C01b2D047F2a3b33d72E31f",
+        "gameFactory": "0xB31729842D2a1448CABfBeaB5554173EE2236033",
+        "battleshipBetting": "0x2b859551fBC83219abf2C4965333013DC972D228"
       },
       "config": {
         "backend": "0xD273cde1aEf147c7f3f696b2b5C92f68d337a75A",
-        usdcToken: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913,
-        treasury: 0x39E8F214c03f9A2C47381ba708FA0970540CD942,
-        admin: 0x69CEc43D4d65A9932f4F0f1B606FF9e40E5eb43b
+        "usdcToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "treasury": "0x39E8F214c03f9A2C47381ba708FA0970540CD942",
+        "admin": "0xD4dFadD36A07ee599bE13c9AC0ba6156Cf3c7C41"
       },
-      "deploymentDate": "2025-05-28T08:38:13Z"
+      "deploymentDate": "2025-05-28T17:50:16Z"
     }
   }
 }

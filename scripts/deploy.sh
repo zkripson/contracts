@@ -68,7 +68,7 @@ echo -e "${YELLOW}Deploying contracts...${NC}"
 # Set deployer address as environment variable for the script
 export DEPLOYER_ADDRESS="$DEPLOYER_ADDRESS"
 
-DEPLOY_COMMAND="forge script scripts/deploy/Deploy.s.sol:DeployZKBattleship --rpc-url $BASE_MAINNET_RPC_URL --broadcast -vvvv --account $KEYSTORE_NAME"
+DEPLOY_COMMAND="forge script scripts/deploy/Deploy.s.sol:DeployZKBattleship --rpc-url $BASE_MAINNET_RPC_URL --broadcast -vvvv --private-key $PRIVATE_KEY"
 
 # Add verification if BASE_API_KEY is provided
 if [ ! -z "$BASE_MAINNET_API_KEY" ]; then
