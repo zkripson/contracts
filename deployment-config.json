@@ -1,24 +1,24 @@
 {
   "environments": {
-    "base-sepolia": {
-      "network": "Base Sepolia Testnet",
-      "rpc": "https://sepolia.base.org",
-      "ws": "",
-      "explorer": "https://sepolia.basescan.org",
+    "base-mainnet": {
+      "network": "Base Mainnet",
+      "rpc": "https://small-palpable-darkness.base-mainnet.quiknode.pro/f1f7c626b88d4bff727d2331638c6ceafd36e9b4/",
+      "ws": "wss://small-palpable-darkness.base-mainnet.quiknode.pro/f1f7c626b88d4bff727d2331638c6ceafd36e9b4/",
+      "explorer": "https://basescan.org",
       "contracts": {
         "shipToken": "null",
-        "gameImplementation": "0xa55Cc2c714a2336935e4CC0081abd452AeFC003A",
-        "gameStatistics": "0x50081E0EE38380aD90e45aC5D45DfB653bCCF1BF",
-        "gameFactory": "0x0FcdEC4e8c8E9C87203958F22164e8CEa5fD0b4E",
-        battleshipBetting: 0x31985259fECd3C35f969FB3AfAcb3f98D2daeef8
+        "gameImplementation": "0x6291BA16b085768a332C330b5fBA044f5dA86012",
+        "gameStatistics": "0xc675457aF4387739672E8C087191191961Ae4A4B",
+        "gameFactory": "0xD1a2812933b9cBCEcd024c0F5F3b1B0D03817f45",
+        battleshipBetting: 0x68e19F765E20bAEDfc06e431ADdD7f7d92945324
       },
       "config": {
-        "backend": "0x459D7FB72ac3dFB0666227B30F25A424A5583E9c",
-        usdcToken: 0x036CbD53842c5426634e7929541eC2318f3dCF7e,
-        treasury: 0x459D7FB72ac3dFB0666227B30F25A424A5583E9c,
-        admin: 0x459D7FB72ac3dFB0666227B30F25A424A5583E9c
+        "backend": "0xD273cde1aEf147c7f3f696b2b5C92f68d337a75A",
+        usdcToken: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913,
+        treasury: 0x39E8F214c03f9A2C47381ba708FA0970540CD942,
+        admin: 0x69CEc43D4d65A9932f4F0f1B606FF9e40E5eb43b
       },
-      "deploymentDate": "2025-05-25T15:30:43Z"
+      "deploymentDate": "2025-05-28T08:38:13Z"
     }
   }
 }

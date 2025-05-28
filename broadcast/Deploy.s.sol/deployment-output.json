@@ -1,15 +1,15 @@
 {
-  "network": "84532",
-  "network_name": "Base Sepolia Testnet",
-  "timestamp": "1748186932",
+  "network": "8453",
+  "network_name": "Base Mainnet",
+  "timestamp": "1748421265",
   "contracts": {
-    "BattleshipGameImplementation": "0xa55Cc2c714a2336935e4CC0081abd452AeFC003A",
-    "BattleshipStatistics": "0x50081E0EE38380aD90e45aC5D45DfB653bCCF1BF",
-    "GameFactoryWithStats": "0x0FcdEC4e8c8E9C87203958F22164e8CEa5fD0b4E",
-    "BattleshipBetting": "0x31985259fECd3C35f969FB3AfAcb3f98D2daeef8",
-    "BattleshipPoints": "0x3Fc309f36cc83906e1c88b8346D102EE2A15Ef57"
+    "BattleshipGameImplementation": "0x6291BA16b085768a332C330b5fBA044f5dA86012",
+    "BattleshipStatistics": "0xc675457aF4387739672E8C087191191961Ae4A4B",
+    "GameFactoryWithStats": "0xD1a2812933b9cBCEcd024c0F5F3b1B0D03817f45",
+    "BattleshipBetting": "0x68e19F765E20bAEDfc06e431ADdD7f7d92945324",
+    "BattleshipPoints": "0x502714828F254Fd890Ec78424A50cF257Ee5EA84"
   },
   "config": {
-    "backend": "0x459D7FB72ac3dFB0666227B30F25A424A5583E9c"
+    "backend": "0xD273cde1aEf147c7f3f696b2b5C92f68d337a75A"
   }
 }
