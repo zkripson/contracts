@@ -793,4 +793,106 @@ contract BattleshipBettingTest is Test {
         vm.expectRevert();
         betting.emergencyRefundBet(inviteId);
     }
+    
+    // ==================== Admin Manual Resolution Tests ====================
+    
+    function testAdminResolveGameWithForce() public {
+        // Setup: Create invite, accept, and create game
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        uint256 gameId = betting.createGame(inviteId);
+        
+        // Note: We're not setting the game state to Completed, simulating a broken backend
+        
+        uint256 totalPool = STANDARD_STAKE * 2;
+        uint256 platformFee = (totalPool * betting.platformFeePercentage()) / 100;
+        uint256 winnerPayout = totalPool - platformFee;
+
+        uint256 treasuryBalanceBefore = usdc.balanceOf(TREASURY);
+        uint256 player1BalanceBefore = usdc.balanceOf(PLAYER1);
+
+        // Admin resolves with force=true to bypass completion check
+        vm.prank(ADMIN);
+        vm.expectEmit(true, true, false, true);
+        emit GameResolved(gameId, PLAYER1, winnerPayout, platformFee);
+        betting.adminResolveGame(gameId, PLAYER1, true);
+
+        // Check balances
+        assertEq(usdc.balanceOf(PLAYER1), player1BalanceBefore + winnerPayout);
+        assertEq(usdc.balanceOf(TREASURY), treasuryBalanceBefore + platformFee);
+        assertEq(usdc.balanceOf(address(betting)), 0);
+
+        // Check invite status
+        BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
+        assertEq(uint256(invite.betStatus), uint256(BattleshipBetting.BetStatus.Resolved));
+        assertEq(uint256(invite.gameStatus), uint256(BattleshipBetting.GameStatus.COMPLETED));
+        assertTrue(invite.fundsDistributed);
+    }
+    
+    function testAdminResolveGameWithoutForce() public {
+        // Setup: Create invite, accept, and create game
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        uint256 gameId = betting.createGame(inviteId);
+        
+        // Set game to Completed state (simulating normal completion)
+        address gameAddress = mockFactory.games(gameId);
+        MockGame(gameAddress).setState(MockGame.GameState.Completed);
+        
+        // Admin resolves with force=false (normal completion check)
+        vm.prank(ADMIN);
+        betting.adminResolveGame(gameId, PLAYER1, false);
+
+        // Check invite status
+        BattleshipBetting.BettingInvite memory invite = betting.getBettingInvite(inviteId);
+        assertEq(uint256(invite.betStatus), uint256(BattleshipBetting.BetStatus.Resolved));
+        assertTrue(invite.fundsDistributed);
+    }
+    
+    function test_RevertWhen_AdminResolveNotCompleted() public {
+        // Setup: Create invite, accept, and create game
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        uint256 gameId = betting.createGame(inviteId);
+        
+        // Set game to Playing state (not Completed)
+        address gameAddress = mockFactory.games(gameId);
+        MockGame(gameAddress).setState(MockGame.GameState.Playing);
+        
+        // Admin tries to resolve with force=false - should revert
+        vm.prank(ADMIN);
+        vm.expectRevert(BattleshipBetting.GameNotCompleted.selector);
+        betting.adminResolveGame(gameId, PLAYER1, false);
+    }
+    
+    function test_RevertWhen_AdminResolveNotAdmin() public {
+        vm.prank(PLAYER1);
+        uint256 inviteId = betting.createInvite(STANDARD_STAKE, PLAYER1);
+
+        vm.prank(PLAYER2);
+        betting.acceptInvite(inviteId, PLAYER2);
+
+        vm.prank(BACKEND);
+        uint256 gameId = betting.createGame(inviteId);
+        
+        // Try to resolve as non-admin - should revert
+        vm.prank(PLAYER1);
+        vm.expectRevert();
+        betting.adminResolveGame(gameId, PLAYER1, true);
+    }
 }

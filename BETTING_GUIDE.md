@@ -74,6 +74,7 @@ betting.resolveGame(gameId, winnerAddress);
 - `setTreasury(address newTreasury)`: Update treasury address
 - `pause()`: Pause contract in emergency
 - `unpause()`: Resume normal operations
+- `adminResolveGame(uint256 gameId, address winner, bool forceResolve)`: Manually resolve a game when backend is unavailable
 
 ## View Functions
 
@@ -88,6 +89,7 @@ betting.resolveGame(gameId, winnerAddress);
 3. **Pausable**: Contract can be paused in emergency situations
 4. **Time limits**: Invites expire after 24 hours to prevent stale bets
 5. **Balance checks**: Validates players have sufficient funds before accepting
+6. **Admin failsafe**: Administrators can manually resolve games when backend is unavailable
 
 ## Testing
 
@@ -139,6 +141,14 @@ The contract is optimized for Base network with:
 - No one accepts within 24 hours
 - Player A or anyone can trigger expiration
 - Player A receives: $100 (full refund)
+
+### Admin Manual Resolution
+- Player A stakes $100
+- Player B stakes $100
+- Game is played, but backend is unavailable to resolve
+- Admin calls adminResolveGame with winner and forceResolve=true
+- Funds are distributed as in normal resolution (90% to winner, 10% to treasury)
+- This bypasses the normal requirement for the game to be in Completed state
 
 ## Future Enhancements
 

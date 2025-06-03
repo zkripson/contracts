@@ -881,4 +881,69 @@ contract BattleshipBetting is AccessControl, Pausable, ReentrancyGuard {
     function getTokenMinStake(address token) external view returns (uint256 minStakeAmount) {
         return tokenMinStakeAmounts[token];
     }
+
+    /**
+     * @notice Manually resolve a game and distribute winnings (admin only)
+     * @dev For use in emergency situations when backend is unavailable
+     * @param gameId ID of the game to resolve
+     * @param winner Address of the winner (must be one of the players)
+     * @param forceResolve If true, bypasses game completion state check
+     */
+    function adminResolveGame(uint256 gameId, address winner, bool forceResolve) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        // Ensure winner is not zero address
+        if (winner == address(0)) revert InvalidWinnerAddress();
+        
+        uint256 inviteId = gameIdToInviteId[gameId];
+        if (inviteId == 0) revert GameNotFound();
+
+        BettingInvite storage invite = bettingInvites[inviteId];
+
+        // Validate bet status
+        if (invite.betStatus != BetStatus.Escrowed) revert InvalidInviteStatus();
+        if (invite.fundsDistributed) revert AlreadyResolved();
+        
+        // Validate game exists in GameFactory
+        address gameAddress;
+        try gameFactory.games(gameId) returns (address addr) {
+            gameAddress = addr;
+        } catch {
+            revert GameFactoryCallFailed();
+        }
+        
+        if (gameAddress == address(0)) revert GameNotInFactory();
+        
+        // Check game completion state if not forcing resolution
+        if (!forceResolve) {
+            try BattleshipGameImplementation(gameAddress).state() returns (BattleshipGameImplementation.GameState gameState) {
+                if (gameState != BattleshipGameImplementation.GameState.Completed) {
+                    revert GameNotCompleted();
+                }
+            } catch {
+                revert GameFactoryCallFailed();
+            }
+        }
+
+        // Validate winner is one of the players
+        if (winner != invite.creator && winner != invite.acceptor) {
+            revert UnauthorizedAction();
+        }
+
+        // Mark as resolved
+        GameStatus oldStatus = invite.gameStatus;
+        invite.betStatus = BetStatus.Resolved;
+        invite.gameStatus = GameStatus.COMPLETED;
+        invite.fundsDistributed = true;
+        
+        emit GameStatusUpdated(inviteId, oldStatus, GameStatus.COMPLETED);
+
+        uint256 totalPool = invite.stakeAmount * 2;
+        uint256 platformFee = Math.mulDiv(totalPool, platformFeePercentage, 100);
+        uint256 winnerPayout = totalPool - platformFee;
+
+        // Distribute funds to winner using the bet token
+        IERC20(invite.betToken).safeTransfer(treasury, platformFee);
+        IERC20(invite.betToken).safeTransfer(winner, winnerPayout);
+
+        emit GameResolved(gameId, winner, winnerPayout, platformFee);
+    }
 }
